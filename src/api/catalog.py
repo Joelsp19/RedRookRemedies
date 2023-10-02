@@ -17,6 +17,8 @@ def get_catalog():
         ))
         result = tab.first()
         red_quantity = result.num_red_potions
+        if red_quantity == 0:
+            return []
 
 
     return [

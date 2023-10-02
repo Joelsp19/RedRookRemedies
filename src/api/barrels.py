@@ -63,7 +63,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     if red_ml_quantity < 10:
         to_buy = 1
     else:
-        to_buy = 0
+        return []
 
     return [
         {
