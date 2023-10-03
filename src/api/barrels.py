@@ -61,10 +61,10 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     cur_gold = result.gold
 
     # determines if we should buy or not
-    #currently only one thing in wholesale catalog and it costs 25
+    #currently only one thing in wholesale catalog
 
-    if red_ml_quantity < 10 and cur_gold > 25:
-        to_buy = 1
+    if red_ml_quantity < 10 and cur_gold > wholesale_catalog[0].price:
+        to_buy = cur_gold // wholesale_catalog[0].price
     else:
         return []
 
