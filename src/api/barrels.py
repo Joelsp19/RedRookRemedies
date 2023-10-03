@@ -51,16 +51,19 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     """ """
     print(wholesale_catalog)
 
+
     with db.engine.begin() as connection:
-            result = connection.execute(sqlalchemy.text(
-                "SELECT * FROM global_inventory"
+            tab = connection.execute(sqlalchemy.text(
+                "SELECT nun_red_ml, gold FROM global_inventory"
             ))
-    red_ml_quantity = result.first().num_red_ml
+    result = tab.first()
+    red_ml_quantity = result.num_red_ml
+    cur_gold = result.gold
 
     # determines if we should buy or not
-    #currently only one thing in wholesale catalog
+    #currently only one thing in wholesale catalog and it costs 25
 
-    if red_ml_quantity < 10:
+    if red_ml_quantity < 10 and cur_gold > 25:
         to_buy = 1
     else:
         return []

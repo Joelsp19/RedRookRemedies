@@ -56,6 +56,9 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
     RED_PRICE = 50
     #hard coded for now... later need to check catalog for prices
+    #things to work on...
+    # need to empty cart
+    # what happens if we can't find a correct id...?
 
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
