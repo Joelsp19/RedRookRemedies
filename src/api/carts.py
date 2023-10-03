@@ -68,7 +68,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         red_quantity = result.num_red_potions
         cur_gold = result.gold
 
-    red_bought = cart_dict[cart_id]["RED_BARREL"]
+    red_bought = cart_dict[cart_id]["RED_POTION_0"]
     gold_paid = red_bought * RED_PRICE
     if red_bought > red_quantity:
         red_bought = 0
