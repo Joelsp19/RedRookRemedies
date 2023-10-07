@@ -9,24 +9,22 @@ def get_catalog():
     """
     Each unique item combination must have only a single price.
     """
+    catalog = []
 
     # Can return a max of 20 items.
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
-            "SELECT num_red_potions FROM global_inventory LIMIT 20"
+            "SELECT * FROM potion_inventory LIMIT 20"
         ))
-        result = tab.first()
-        red_quantity = result.num_red_potions
-        if red_quantity == 0:
-            return []
+        for row in tab:
+            quant = row.quantity
+            if quant != 0:
+                catalog.append( {
+                    "sku": row.sku,
+                    "name": row.name,
+                    "quantity": row.quantity,
+                    "price": row.price,
+                    "potion_type": row.type
+                })     
 
-
-    return [
-            {
-                "sku": "RED_POTION_0",
-                "name": "red potion",
-                "quantity": red_quantity,
-                "price": 50,
-                "potion_type": [100, 0, 0, 0],
-            }
-        ]
+    return catalog
