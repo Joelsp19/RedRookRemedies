@@ -40,7 +40,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
             p_res= p_tab.first()
             p_quant_new = p_res.quantity + p_quantity
             connection.execute(sqlalchemy.text(
-            "UPDATE potion_inventory SET quantity = '%s' WHERE id = '%s'" % (p_quant_new,p_res.id)
+                "UPDATE potion_inventory SET quantity = '%s' WHERE id = '%s'" % (p_quant_new,p_res.id)
             ))
         
         connection.execute(sqlalchemy.text(
@@ -86,6 +86,7 @@ def get_bottle_plan():
         quantity = min(max_quant[0], max_quant[1],max_quant[2],MAX_POTION-row.quantity)
         for i in range(len(cur_ml_by_type)):
             cur_ml_by_type[i] -= quantity * row.potion_type[i]
+        print(cur_ml_by_type)
         if quantity > 0:
             plan_list.append(
                 {
