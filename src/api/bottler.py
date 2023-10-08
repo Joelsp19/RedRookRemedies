@@ -77,7 +77,6 @@ def get_bottle_plan():
     cur_ml_by_type = [result.num_red_ml, result.num_green_ml, result.num_blue_ml]
     #currently order is random based on what the query returns... we can change to give priority to some potions
     for row in p_tab:
-        print(row)
         max_quant = [0,0,0]
         for i in range(len(row.potion_type)-1):
             if row.potion_type[i] > 0:
@@ -85,9 +84,6 @@ def get_bottle_plan():
             else:
                 max_quant[i] = MAX_POTION+1 #essentially infinity b/c we don't need any resources to make
         quantity = min(max_quant[0], max_quant[1],max_quant[2],MAX_POTION-row.quantity)
-        print(cur_ml_by_type)
-        print(max_quant)
-        print(quantity)
         for i in range(len(cur_ml_by_type)):
             cur_ml_by_type[i] -= quantity * row.potion_type[i]
         if quantity > 0:

@@ -131,7 +131,6 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
             barrel = wholesale_catalog[b_index]
             want = budget_per_type_list[index] // barrel.price
             quant_buy = min(want,barrel.quantity)
-            print(want)
             item = {"sku": barrel.sku,
                     "ml_per_barrel" : barrel.ml_per_barrel,
                     "potion_type": barrel.potion_type,

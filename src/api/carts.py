@@ -55,7 +55,6 @@ class CartCheckout(BaseModel):
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
     print(cart_checkout)
-    RED_PRICE = 50
     #hard coded for now... later need to check catalog for prices
     #things to work on...
     # need to empty cart
