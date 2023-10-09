@@ -31,7 +31,7 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
 
     for barrel in barrels_delivered:
         cost += (barrel.price*barrel.quantity)
-        type = barrel.potion_type.index(1) #type is 0 for red, 1 for blue, 2 for green
+        type = barrel.potion_type[0,3].index(1) #type is 0 for red, 1 for blue, 2 for green
         num_ml_per_type[type] += (barrel.ml_per_barrel * barrel.quantity)
 
     with db.engine.begin() as connection:
@@ -119,7 +119,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     #3 types of barrels
     for index, barrel in enumerate(wholesale_catalog):
         unit_price = barrel.price/barrel.ml_per_barrel
-        type = barrel.potion_type.index(1) #type is 0 for red, 1 for blue, 2 for green
+        type = barrel.potion_type[0,3].index(1) #type is 0 for red, 1 for blue, 2 for green
         #if its a better unit price and at least one barrel is in the budget...
         if unit_price <= best_per_type_list[type][1] and barrel.price <= budget_per_type_list[type]:
             best_per_type_list[type] = [index,unit_price] 
