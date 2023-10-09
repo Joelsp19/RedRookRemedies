@@ -109,7 +109,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
             if max_needed > 0:
                 type = amt_needed.index(max(amt_needed)) #will be the first instance so default order is RGB
                 if type < 0 or type > 2:
-                    type = 2
+                    type = 2 # if dark is the max amt that we need 
                 budget_per_type_list[type] = budget
             else: #we are all stocked up don't update our budget...we can return an empty list
                  return [] 
@@ -123,7 +123,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         unit_price = barrel.price/barrel.ml_per_barrel
         type = barrel.potion_type.index(1) #type is 0 for red, 1 for blue, 2 for green, 3 for dark
         if type < 0 or type > 2:
-             type = 2
+            continue
         #if its a better unit price and at least one barrel is in the budget...
         if unit_price <= best_per_type_list[type][1] and barrel.price <= budget_per_type_list[type]:
             best_per_type_list[type] = [index,unit_price] 
