@@ -68,34 +68,6 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     num_ml_list = [result.num_red_ml, result.num_green_ml, result.num_blue_ml, result.num_dark_ml]
     budget_per_type_list = [0,0,0,0]
 
-
-    ####idea 1:
-    #spreads out our budget based on ratio of red,green,blue ml we have (this can change as shop stats come in)
-    '''
-    budget_per_type_list = [0,0,0]
-    for i in range(len(num_ml_list)):
-        budget_per_type_list[i] = math.floor((budget * ((avg_num_ml-num_ml_list[i])/tot_num_ml)) / 5) * 5 #rounded down to the nearest 5
-        print(budget_per_type_list)
-    '''
-    # keeps track of the index of the barrel with the best (affordable) value
-    # the inner list: index 0 is index of wholesale catalog, index 1 is initially the max budget for a type
-    
-    ####idea 2:
-    #always buy the lowest type, if the same, buy in the order red, green, blue
-    '''
-    min_type = [0,num_ml_list[0]]
-    for i in range(1,len(num_ml_list)):
-        if num_ml_list[i] < min_type[1]:
-            min_type = [i,num_ml_list[i]]
-    budget_per_type_list = [0,0,0]
-    budget_per_type_list[min_type[0]] = budget
-    '''
-    ####idea 3:
-    #find the minimum quantity potions in postion list
-    #check the quantity of each ml needed in those potion
-    #divy the budget based on needed ml???
-    #or choose the type of maximum quantity needed and use whole budget for that type
-    
     with db.engine.begin() as connection:
             tab = connection.execute(sqlalchemy.text(
                 "SELECT quantity,potion_type FROM potion_inventory WHERE quantity = (SELECT MIN(quantity) FROM potion_inventory)"
