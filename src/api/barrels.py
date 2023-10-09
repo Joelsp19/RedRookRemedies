@@ -26,12 +26,12 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
     """ """
     print(barrels_delivered)
 
-    num_ml_per_type = [0,0,0]
+    num_ml_per_type = [0,0,0,0]
     cost = 0
 
     for barrel in barrels_delivered:
         cost += (barrel.price*barrel.quantity)
-        type = barrel.potion_type[0:3].index(1) #type is 0 for red, 1 for blue, 2 for green
+        type = barrel.potion_type.index(1) #type is 0 for red, 1 for blue, 2 for green, 3 for dark
         num_ml_per_type[type] += (barrel.ml_per_barrel * barrel.quantity)
 
     with db.engine.begin() as connection:
@@ -65,8 +65,8 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     cur_gold = result.gold
     
     budget = math.floor(1*cur_gold)
-    num_ml_list = [result.num_red_ml, result.num_green_ml, result.num_blue_ml]
-    budget_per_type_list = [0,0,0]
+    num_ml_list = [result.num_red_ml, result.num_green_ml, result.num_blue_ml, result.num_dark_ml]
+    budget_per_type_list = [0,0,0,0]
 
 
     ####idea 1:
@@ -100,7 +100,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
             tab = connection.execute(sqlalchemy.text(
                 "SELECT quantity,potion_type FROM potion_inventory WHERE quantity = (SELECT MIN(quantity) FROM potion_inventory)"
             ))
-            amt_needed = [-1,-1,-1]
+            amt_needed = [-1,-1,-1,-1]
             for row in tab:
                 #if we are all stocked up... save our gold don't update our budget
                 for i in range(len(row.potion_type)-1):
@@ -108,18 +108,22 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
             max_needed = max(amt_needed) #gives us what we need the most
             if max_needed > 0:
                 type = amt_needed.index(max(amt_needed)) #will be the first instance so default order is RGB
+                if type < 0 or type > 2:
+                    type = 2
                 budget_per_type_list[type] = budget
             else: #we are all stocked up don't update our budget...we can return an empty list
                  return [] 
                  
-    best_per_type_list = [[-1,budget_per_type_list[0]],[-1,budget_per_type_list[1]],[-1,budget_per_type_list[2]]]
+    best_per_type_list = [[-1,budget_per_type_list[0]],[-1,budget_per_type_list[1]],[-1,budget_per_type_list[2]],[-1,budget_per_type_list[3]]]
 
     # determines if we should buy or not
     #for now we just buy the best *affordable value of each type of barrel from catalog
     #3 types of barrels
     for index, barrel in enumerate(wholesale_catalog):
         unit_price = barrel.price/barrel.ml_per_barrel
-        type = barrel.potion_type[0:3].index(1) #type is 0 for red, 1 for blue, 2 for green
+        type = barrel.potion_type.index(1) #type is 0 for red, 1 for blue, 2 for green, 3 for dark
+        if type < 0 or type > 2:
+             type = 2
         #if its a better unit price and at least one barrel is in the budget...
         if unit_price <= best_per_type_list[type][1] and barrel.price <= budget_per_type_list[type]:
             best_per_type_list[type] = [index,unit_price] 
