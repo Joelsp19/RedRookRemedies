@@ -64,14 +64,6 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     potion_count = 0
     potion_list = []
 
-    #to select the current amt of gold
-    with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            "SELECT gold FROM global_inventory WHERE id = 1"
-        ))
-        result = tab.first()
-        cur_gold = result.gold
-
     #goes through every item in the cart and updates the potion inventory
     #increments earnings based on price * bought and potion count
     #checks against inventory to see if users checkout is possible
@@ -109,6 +101,14 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 "UPDATE potion_inventory SET quantity = '%s' WHERE id = '%s'" % (potion[0],potion[1])
             ))       
     
+    #to select the current amt of gold
+    with db.engine.begin() as connection:
+        tab = connection.execute(sqlalchemy.text(
+            "SELECT gold FROM global_inventory WHERE id = 1"
+        ))
+        result = tab.first()
+        cur_gold = result.gold
+
     new_gold = cur_gold + earnings
     with db.engine.begin() as connection:
             connection.execute(sqlalchemy.text(
