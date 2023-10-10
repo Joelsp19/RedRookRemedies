@@ -110,12 +110,10 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         ))
         result = tab.first()
         cur_gold = result.gold
-
-    new_gold = cur_gold + earnings
-    with db.engine.begin() as connection:
-            connection.execute(sqlalchemy.text(
+        new_gold = cur_gold + earnings
+        connection.execute(sqlalchemy.text(
                 "UPDATE global_inventory SET gold = '%s' WHERE id = 1" % (new_gold)
-            ))
+        ))
 
     print(potion_count)
     print(earnings)
