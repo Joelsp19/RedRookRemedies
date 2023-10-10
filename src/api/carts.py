@@ -115,4 +115,6 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 "UPDATE global_inventory SET gold = '%s' WHERE id = 1" % (new_gold)
             ))
 
+    print(potion_count)
+    print(earnings)
     return {"total_potions_bought": potion_count, "total_gold_paid": earnings}
