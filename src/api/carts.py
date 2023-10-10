@@ -77,6 +77,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             p_res = p_tab.first()
             #if we can't find it in our catalog (oops big error), should def throw error
             if p_res == None:
+                print("error - not in catalog")
                 return {"total_potions_bought": 0, "total_gold_paid": 0}
             p_id = p_res.id
             p_quant = p_res.quantity
@@ -85,6 +86,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
 
             #if users try to check out more than what is in the inventory, should throw error
             if(p_quant<p_bought):
+                print("error - more than in inventory")
                 return {"total_potions_bought": 0, "total_gold_paid": 0}
 
             new_quant = p_quant - p_bought
