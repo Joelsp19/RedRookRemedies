@@ -95,12 +95,12 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
 
             #we only want to update all the potions after we check to make sure cart is accurate
             #for now we store the values we need in this array
-            potion_list.append([new_quant,p_id])
+            potion_list.append([p_bought,p_id])
 
     for potion in potion_list:
         with db.engine.begin() as connection:
             connection.execute(sqlalchemy.text(
-                "UPDATE potion_inventory SET quantity = '%s' WHERE id = '%s'" % (potion[0],potion[1])
+                "UPDATE potion_inventory SET quantity = quantity - '%s' WHERE id = '%s'" % (potion[0],potion[1])
             ))       
     
     #to select the current amt of gold
@@ -112,7 +112,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         cur_gold = result.gold
         new_gold = cur_gold + earnings
         connection.execute(sqlalchemy.text(
-                "UPDATE global_inventory SET gold = '%s' WHERE id = 1" % (new_gold)
+                "UPDATE global_inventory SET gold = gold + '%s' WHERE id = 1" % (earnings)
         ))
 
     print(potion_count)

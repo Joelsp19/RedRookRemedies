@@ -61,6 +61,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     global temp_count
     temp_count+=1
     index_to_buy = temp_count%3
+    print(index_to_buy)
     
     barrels_to_buy = []
 
