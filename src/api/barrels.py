@@ -9,7 +9,7 @@ from src import database as db
 router = APIRouter(
     prefix="/barrels",
     tags=["barrels"],
-    #dependencies=[Depends(auth.get_api_key)],
+    dependencies=[Depends(auth.get_api_key)],
 )
 
 class Barrel(BaseModel):
