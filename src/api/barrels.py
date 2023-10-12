@@ -31,7 +31,7 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
 
     for barrel in barrels_delivered:
         cost += (barrel.price*barrel.quantity)
-        type = barrel.potion_type.index(1) #type is 0 for red, 1 for blue, 2 for green, 3 for dark
+        type = barrel.potion_type.index(1) #type is 0 for red, 1 for green, 2 for blue, 3 for dark
         if type not in range(4):
             raise Exception("Not a valid barrel")
         num_ml_per_type[type] += (barrel.ml_per_barrel * barrel.quantity)
@@ -41,8 +41,8 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
                 """
                 UPDATE global_inventory SET 
                 num_red_ml = num_red_ml + :rml,
-                num_green_ml = num_green_ml + :bml,
-                num_blue_ml = num_blue_ml + :gml,
+                num_green_ml = num_green_ml + :gml,
+                num_blue_ml = num_blue_ml + :bml,
                 num_dark_ml = num_dark_ml + :dml,
                 gold = gold - :cost
                 WHERE id=1
