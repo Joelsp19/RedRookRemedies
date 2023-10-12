@@ -21,6 +21,33 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
     """ """
     print(potions_delivered)    
 
+    num_ml_by_type = [0,0,0,0]
+    for i in range(4):
+        num_ml_by_type[i] = sum(potion.potion_type[i]*potion.quantity for potion in potions_delivered)
+
+    for potion in potions_delivered:
+        with db.engine.begin() as connection:
+            connection.execute(sqlalchemy.text(
+            """UPDATE potion_inventory SET 
+            quantity = quantity + :delivered 
+            WHERE type = :potion_type"""
+            ),
+        [{"delivered": potion.quantity, "potion_type": potion.type}]
+        )
+
+    with db.engine.begin() as connection:
+        connection.execute(sqlalchemy.text(
+            """UPDATE global_inventory SET 
+            num_red_ml = num_red_ml - :rml
+            num_green_ml = num_green_ml - :gml
+            num_blue_ml = num_blue_ml - :bml
+            num_dark_ml = num_dark_ml - :dml
+            WHERE id = 1"""
+            ),
+        [{"rml": num_ml_by_type[0], "gml": num_ml_by_type[1],"bml": num_ml_by_type[2],"dml": num_ml_by_type[3]}]
+        )
+    return "OK"
+
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
             "SELECT num_red_ml,num_green_ml,num_blue_ml FROM global_inventory"
@@ -48,6 +75,57 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
             ))
 
     return "OK"
+
+
+def can_bottle(potion_type,cur_ml_list):
+
+    
+        for type,val in enumerate(cur_ml_list):
+            if potion_type[type] > val:
+                return False
+        return True
+
+def process():
+    #step 1: select all the potions that need to be stocked
+    #step 2: go through potion and check if can bottle
+    #step 3: if we can't bottle then remove from table
+    #step 4: if we can bottle then we add to json return list, update current_ml_levels
+    #step 4: stop if the list is empty
+    
+    cur_ml_list = [0,0,0,0]
+    plan_list= []
+
+    with db.engine.begin() as connection:
+        tab = connection.execute(sqlalchemy.text(
+            "SELECT num_red_ml,num_green_ml,num_blue_ml,num_dark_ml FROM global_inventory WHERE id = 1"
+        ))
+        stock_tab = connection.execute(sqlalchemy.text(
+            "SELECT quantity,potion_type,max_potion FROM potion_inventory WHERE quantity < max_potion"
+        ))
+    
+    res = tab.first()
+    cur_ml_list = [res.num_red_ml,res.num_green_ml, res.num_blue_ml, res.num_dark_ml]
+
+    #we have a stock table... later we can order based on info 
+    i=0
+    while len(stock_tab) > 0:
+        row = stock_tab[i]
+        if can_bottle(row.potion_type,cur_ml_list):
+            cur_ml_list = [cur_ml_list[i] - row.potion_type[i] for i in range(4)]
+            plan_list.append(
+                {
+                "potion_type": row.potion_type,
+                "quantity": 1,
+                }
+            )
+            i+=1
+        else:
+            stock_tab.remove(row)
+    return plan_list
+        
+            
+            
+
 
 # Gets called 4 times a day
 @router.post("/plan")
