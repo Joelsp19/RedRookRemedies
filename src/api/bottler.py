@@ -32,7 +32,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
             quantity = quantity + :delivered 
             WHERE type = :potion_type"""
             ),
-        [{"delivered": potion.quantity, "potion_type": potion.type}]
+        [{"delivered": potion.quantity, "potion_type": potion.potion_type}]
         )
 
     with db.engine.begin() as connection:
@@ -78,8 +78,6 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
 
 
 def can_bottle(potion_type,cur_ml_list):
-
-    
         for type,val in enumerate(cur_ml_list):
             if potion_type[type] > val:
                 return False
@@ -142,7 +140,10 @@ def get_bottle_plan():
 
     MAX_POTION = 20
 
+    return process()
+
     plan_list = []
+
 
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
