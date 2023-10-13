@@ -30,7 +30,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
             connection.execute(sqlalchemy.text(
             """UPDATE potion_inventory SET 
             quantity = quantity + :delivered 
-            WHERE type = :potion_type"""
+            WHERE potion_type = :potion_type"""
             ),
         [{"delivered": potion.quantity, "potion_type": potion.potion_type}]
         )
@@ -38,9 +38,9 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
     with db.engine.begin() as connection:
         connection.execute(sqlalchemy.text(
             """UPDATE global_inventory SET 
-            num_red_ml = num_red_ml - :rml
-            num_green_ml = num_green_ml - :gml
-            num_blue_ml = num_blue_ml - :bml
+            num_red_ml = num_red_ml - :rml,
+            num_green_ml = num_green_ml - :gml,
+            num_blue_ml = num_blue_ml - :bml,
             num_dark_ml = num_dark_ml - :dml
             WHERE id = 1"""
             ),
