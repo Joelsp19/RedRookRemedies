@@ -105,20 +105,31 @@ def process():
     cur_ml_list = [res.num_red_ml,res.num_green_ml, res.num_blue_ml, res.num_dark_ml]
 
     #we have a stock table... later we can order based on info 
+    stock_list = stock_tab.all()
+
     i=0
-    while len(stock_tab) > 0:
-        row = stock_tab[i]
+    while len(stock_list) > 0:
+        row = stock_list[i%len(stock_list)]
         if can_bottle(row.potion_type,cur_ml_list):
             cur_ml_list = [cur_ml_list[i] - row.potion_type[i] for i in range(4)]
-            plan_list.append(
-                {
-                "potion_type": row.potion_type,
-                "quantity": 1,
-                }
-            )
+            #finds the element in the list, empty dict if not in the list
+            cur = {}
+            for elem in plan_list:
+                if elem.get("potion_type") == row.potion_type:
+                    cur = elem
+            if cur == {}:
+                plan_list.append(
+                    {
+                    "potion_type": row.potion_type,
+                    "quantity": 1,
+                    }
+                )
+            else:
+                quant = cur.get("quantity") + 1
+                cur["quantity"] = quant
             i+=1
         else:
-            stock_tab.remove(row)
+            stock_list.remove(row)
     return plan_list
         
             
