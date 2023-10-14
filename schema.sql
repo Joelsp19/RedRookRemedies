@@ -39,33 +39,6 @@ dow: int 1-7
 time_initial(hour) : int 0-24 
 time_end(hour): int 0-24 
 ex: if run at 13(1pm) then initial: 12, end: 14
+we'll use a csv file to streamline the process... located at tick_table.csv
+add id field seperately in supabase...
 */
-
-COPY tick_time (dow, time_initial, time_final)
-FROM 'C:\Users\joelp\OneDrive - Cal Poly\CalPoly\CSC 365\RedRookRemedies\tick_table.csv' DELIMITER ',' CSV HEADER;
-
-
-CREATE TABLE
-    tick_time (
-        id int generated always as identity not null PRIMARY KEY,
-        dow int not null CHECK (dow>=1 AND dow<=7),
-        time_initial int not null CHECK (time_initial>=0 AND time_initial<=24), 
-        time_final int not null CHECK (time_final>=0 AND time_final<=24)
-   )
-
-/*initialize 7*12 rows*/
-DECLARE
-    dow integer := 1;
-    timei integer := 0;
-    timef integer := timei + 2;
-BEGIN
-    WHILE dow <7 LOOP
-        INSERT INTO tick_time
-        (dow,time_initial,time_final)
-        VALUES
-        (dow,timei,timef);
-        timei := (timei + 2)%24;
-        timef := (timef + 2)%24;
-        dow := dow +1;
-    END LOOP
-END
