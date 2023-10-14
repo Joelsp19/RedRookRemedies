@@ -87,14 +87,13 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
     print(cart_checkout)
 
-
     with db.engine.begin() as connection:
         connection.execute(sqlalchemy.text(
             """
             UPDATE potion_inventory
             SET quantity = potion_inventory.quantity - cart_items.quantity
             FROM cart_items
-            WHERE potion_inventory.id = cart_items.potion_inventory_id and cart_items.cart_id = :cart_id
+            WHERE cart_items.potion_inventory_id = potion_inventory.id and cart_items.cart_id = :cart_id
             """
             ),
         [{"cart_id" : cart_id}]
@@ -104,27 +103,42 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
             """
-            SELECT price, SUM(quantity) AS potions_bought, SUM(quantity * price) AS earnings
+            SELECT SUM(cart_items.quantity) AS potions_bought, SUM(cart_items.quantity * price) AS earnings
             FROM cart_items
-            WHERE cart_id == :cart_id
+            JOIN potion_inventory ON cart_items.potion_inventory_id = potion_inventory.id
+            WHERE cart_items.cart_id = :cart_id
             """
         ), 
         [{"cart_id" : cart_id}]
         )
+
+    data = tab.first()
+    potions_bought = data.potions_bought
+    earnings = data.earnings
+
+    #updates the amt of gold 
+    with db.engine.begin() as connection:
+        connection.execute(sqlalchemy.text(
+            """
+            UPDATE global_inventory
+            SET gold = gold + :earnings
+            WHERE id = 1
+            """
+        ), 
+        [{"earnings" : earnings}]
+        )  
+
     #updates the payment string
     with db.engine.begin() as connection:
         connection.execute(sqlalchemy.text(
             """
             UPDATE carts
             SET payment_string = :p
-            WHERE cart_id == :cart_id
+            WHERE carts.id = :cart_id
             """
         ), 
         [{"cart_id" : cart_id, "p": cart_checkout.payment}]
-        )    
-
-        potions_bought = tab.scalar_one.potions_bought
-        earnings = tab.scalar_one.earnings
+        )   
 
     return {"total_potions_bought": potions_bought, "total_gold_paid": earnings}
 
