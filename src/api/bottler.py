@@ -48,35 +48,9 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
         )
     return "OK"
 
-    with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            "SELECT num_red_ml,num_green_ml,num_blue_ml FROM global_inventory"
-        ))
-        result = tab.first()
-        num_ml_by_type = [result.num_red_ml, result.num_green_ml, result.num_blue_ml]
-        for potion in potions_delivered:
-            p_type = potion.potion_type
-            p_quantity = potion.quantity
-            #updates the total ml after selling the potion
-            for i in range(len(p_type)-1):
-                num_ml_by_type[i] -= p_type[i]*p_quantity
-            #find the id of potion_type in the potion inventory and the cur quant of potions
-            p_tab = connection.execute(sqlalchemy.text(
-                "SELECT id,quantity FROM potion_inventory WHERE potion_type = ARRAY%s" % (str(p_type))  
-            ))
-            p_res= p_tab.first()
-            p_quant_new = p_res.quantity + p_quantity
-            connection.execute(sqlalchemy.text(
-                "UPDATE potion_inventory SET quantity = '%s' WHERE id = '%s'" % (p_quant_new,p_res.id)
-            ))
-        
-        connection.execute(sqlalchemy.text(
-            "UPDATE global_inventory SET num_red_ml = '%s', num_green_ml = '%s', num_blue_ml = '%s' WHERE id = 1" % (num_ml_by_type[0],num_ml_by_type[1],num_ml_by_type[2])
-            ))
-
-    return "OK"
-
-
+    
+#input: potion type to bottle and current ml
+#output: returns true if we have enough ml to bottle one potion
 def can_bottle(potion_type,cur_ml_list):
         for type,val in enumerate(cur_ml_list):
             if potion_type[type] > val:
@@ -98,7 +72,7 @@ def process():
             "SELECT num_red_ml,num_green_ml,num_blue_ml,num_dark_ml FROM global_inventory WHERE id = 1"
         ))
         stock_tab = connection.execute(sqlalchemy.text(
-            "SELECT quantity,potion_type,max_potion FROM potion_inventory WHERE quantity < max_potion"
+            "SELECT quantity,potion_type,(max_potion-quantity) AS potion_needed FROM potion_inventory WHERE quantity < max_potion"
         ))
     
     res = tab.first()
@@ -106,11 +80,14 @@ def process():
 
     #we have a stock table... later we can order based on info 
     stock_list = stock_tab.all()
+    stock_list.sort(key= lambda x : (x[0],-x[2])) #sorts based on quantity then potion_needed(descending order)
+    print(stock_list)
 
     i=0
     while len(stock_list) > 0:
         row = stock_list[i%len(stock_list)]
-        if can_bottle(row.potion_type,cur_ml_list):
+        #if we need more potions and we can bottle it...then add or update potion_count
+        if row.potion_needed > 0 and can_bottle(row.potion_type,cur_ml_list):
             cur_ml_list = [cur_ml_list[i] - row.potion_type[i] for i in range(4)]
             #finds the element in the list, empty dict if not in the list
             cur = {}
@@ -128,6 +105,7 @@ def process():
                 quant = cur.get("quantity") + 1
                 cur["quantity"] = quant
             i+=1
+            row.potion_needed -= 1
         else:
             stock_list.remove(row)
     return plan_list
@@ -153,36 +131,4 @@ def get_bottle_plan():
 
     return process()
 
-    plan_list = []
-
-
-    with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            "SELECT num_red_ml, num_blue_ml, num_green_ml FROM global_inventory"
-        ))
-        p_tab = connection.execute(sqlalchemy.text(
-            "SELECT quantity,potion_type FROM potion_inventory WHERE quantity < '%s'" % (MAX_POTION)
-        ))
-    result = tab.first()
-    cur_ml_by_type = [result.num_red_ml, result.num_green_ml, result.num_blue_ml]
-    #currently order is random based on what the query returns... we can change to give priority to some potions
-    for row in p_tab:
-        max_quant = [0,0,0]
-        for i in range(len(row.potion_type)-1):
-            if row.potion_type[i] > 0:
-                max_quant[i] = cur_ml_by_type[i] // row.potion_type[i]
-            else:
-                max_quant[i] = MAX_POTION+1 #essentially infinity b/c we don't need any resources to make
-        quantity = min(max_quant[0], max_quant[1],max_quant[2],MAX_POTION-row.quantity)
-        for i in range(len(cur_ml_by_type)):
-            cur_ml_by_type[i] -= quantity * row.potion_type[i]
-        print(cur_ml_by_type)
-        if quantity > 0:
-            plan_list.append(
-                {
-                "potion_type": row.potion_type,
-                "quantity": quantity,
-                }
-            )
-                    
-    return plan_list
+   

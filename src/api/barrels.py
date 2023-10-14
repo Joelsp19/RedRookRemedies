@@ -104,8 +104,8 @@ def buy_barrel(type,budget,amt_needed,catalog):
         quantity_max = math.ceil(amt_needed / barrel.ml_per_barrel)
         quantity_afford = budget // barrel.price
         quantity_buy = min(quantity_max, barrel.quantity,quantity_afford)
-        print(f"amt needed: {amt_needed} barrel ml: {barrel.ml_per_barrel} budget: {budget} barrel price {barrel.price}")
-        print(f"max: {quantity_max},buy : {quantity_buy},aff: {quantity_afford}")
+       # print(f"amt needed: {amt_needed} barrel ml: {barrel.ml_per_barrel} budget: {budget} barrel price {barrel.price}")
+       # print(f"max: {quantity_max},buy : {quantity_buy},aff: {quantity_afford}")
         amt_needed -= barrel.ml_per_barrel * quantity_buy
         budget -= barrel.price * quantity_buy
         if quantity_buy > 0:
@@ -160,53 +160,4 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     print(wholesale_catalog)
     return process(wholesale_catalog)
 
-    '''
-    #temp solution to ensure blue and green ml is bought...
-    global temp_count
-    temp_count+=1
-    index_to_buy = temp_count%3
-    print(index_to_buy)
     
-    barrels_to_buy = []
-
-    with db.engine.begin() as connection:
-            tab = connection.execute(sqlalchemy.text(
-                "SELECT * FROM global_inventory"
-            ))
-    result = tab.first()
-    cur_gold = result.gold
-    
-    budget = math.floor(1*cur_gold)
-    #num_ml_list = [result.num_red_ml, result.num_green_ml, result.num_blue_ml, result.num_dark_ml]
-    budget_per_type_list = [0,0,0,0]
-    budget_per_type_list[index_to_buy] = budget
-  
-    best_per_type_list = [[-1,budget_per_type_list[0]],[-1,budget_per_type_list[1]],[-1,budget_per_type_list[2]],[-1,budget_per_type_list[3]]]
-
-    #for now we just buy the best *affordable value of each type of barrel from catalog
-    #3 types of barrels
-    for index, barrel in enumerate(wholesale_catalog):
-        unit_price = barrel.price/barrel.ml_per_barrel
-        type = barrel.potion_type.index(1) #type is 0 for red, 1 for blue, 2 for green, 3 for dark
-        if type < 0 or type > 2:
-            continue
-        #if its a better unit price and at least one barrel is in the budget...
-        if unit_price <= best_per_type_list[type][1] and barrel.price <= budget_per_type_list[type]:
-            best_per_type_list[type] = [index,unit_price] 
-
-    #creates the json purchase plan
-    for index,val in enumerate(best_per_type_list):
-        b_index = val[0]
-        if b_index != -1:
-            barrel = wholesale_catalog[b_index]
-            want = budget_per_type_list[index] // barrel.price
-            quant_buy = min(want,barrel.quantity)
-            item = {"sku": barrel.sku,
-                    "ml_per_barrel" : barrel.ml_per_barrel,
-                    "potion_type": barrel.potion_type,
-                    "price": barrel.price,
-                    "quantity": quant_buy,}
-            barrels_to_buy.append(item)
-
-    return barrels_to_buy
-    '''
