@@ -1,12 +1,12 @@
 CREATE TABLE
-  potion_table (
+  potion_inventory_1 (
     id int generated always as identity not null PRIMARY KEY,
     sku text not null,
-    name text not null, 
-    potion_type bigint,
-    quantity bigint,
-    price bigint,
-    max_potion bigint
+    name text not null default "", 
+    potion_type int ARRAY[4] not null,
+    quantity int not null default 0,
+    price int not null default 25,
+    max_potion int not null default 5
 );
 
 
@@ -19,15 +19,11 @@ payment_string
 */
 
 CREATE TABLE
-  potion_table (
-    id int generated always as identity not null PRIMARY KEY,
-    sku text not null,
-    name text not null, 
-    potion_type bigint,
-    quantity bigint,
-    price bigint,
-    max_potion bigint
-);
+    carts (
+        id int generated always as identity not null PRIMARY KEY,
+        customer_name text,
+        payment_string text
+    );
 
 
 /*
@@ -38,3 +34,11 @@ quantity
 cart_id
 
 */
+
+CREATE TABLE
+    cart_items (
+        id int generated always as identity not null PRIMARY KEY,
+        potion_inventory_id int REFERENCES potion_inventory (id),
+        quantity int not null default 0, 
+        cart_id int REFERENCES carts (id)
+   )
