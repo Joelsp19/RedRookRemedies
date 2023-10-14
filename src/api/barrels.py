@@ -79,7 +79,7 @@ def det_amt_needed(priority):
     sorted_list = amt_needed.copy()
     sorted_list.sort(key = lambda x: (x[1], priority[x[0]]), reverse=True) #greatest to least and then by priority list
     return sorted_list
-
+    
 #input: type(RGBD), budget for a type, amount needed for a type, entire wholesale catalog,
 #output: a list of json objects with barrels to buy of this type and quantity to buy of each one
 # and a remaining budget 
