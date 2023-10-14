@@ -22,7 +22,8 @@ CREATE TABLE
     carts (
         id int generated always as identity not null PRIMARY KEY,
         customer_name text,
-        payment_string text
+        payment_string text,
+        created_at timestamp with time zone null default now()
     );
 
 

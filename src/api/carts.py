@@ -29,7 +29,7 @@ def create_cart(new_cart: NewCart):
             ),
         [{"customer" : new_cart.customer}]
         )
-        uid = str(tab.scalar_one())
+        uid = tab.scalar_one()
     return {"cart_id": uid}
 
 
