@@ -79,7 +79,7 @@ def det_amt_needed(priority):
     sorted_list = amt_needed.copy()
     sorted_list.sort(key = lambda x: (x[1], priority[x[0]]), reverse=True) #greatest to least and then by priority list
     return sorted_list
-    
+
 #input: type(RGBD), budget for a type, amount needed for a type, entire wholesale catalog,
 #output: a list of json objects with barrels to buy of this type and quantity to buy of each one
 # and a remaining budget 
@@ -97,15 +97,14 @@ def buy_barrel(type,budget,amt_needed,catalog):
             unit_price = barrel.price/barrel.ml_per_barrel
             type_list.append([i,unit_price])
     #now we have all the indices of the barrels of our given type
-    type_list.sort(key=lambda x: x[1], reverse= True)
-
+    type_list.sort(key=lambda x: x[1])
     for b in type_list:
         barrel = catalog[b[0]]
         quantity_max = math.ceil(amt_needed / barrel.ml_per_barrel)
         quantity_afford = budget // barrel.price
         quantity_buy = min(quantity_max, barrel.quantity,quantity_afford)
-       # print(f"amt needed: {amt_needed} barrel ml: {barrel.ml_per_barrel} budget: {budget} barrel price {barrel.price}")
-       # print(f"max: {quantity_max},buy : {quantity_buy},aff: {quantity_afford}")
+        print(f"type: {type} b: {b} amt needed: {amt_needed} barrel ml: {barrel.ml_per_barrel} budget: {budget} barrel price {barrel.price}")
+        print(f"max: {quantity_max},buy : {quantity_buy},aff: {quantity_afford}")
         amt_needed -= barrel.ml_per_barrel * quantity_buy
         budget -= barrel.price * quantity_buy
         if quantity_buy > 0:
@@ -117,6 +116,7 @@ def buy_barrel(type,budget,amt_needed,catalog):
             barrels_to_buy.append(item)
         if amt_needed <= 0 or budget <= 0:
             break
+    print(f"done with this type")
     return [barrels_to_buy,budget]
         
     
