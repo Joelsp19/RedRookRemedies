@@ -20,7 +20,7 @@ def create_cart(new_cart: NewCart):
     """ """
 
     with db.engine.begin() as connection:
-        uid = connection.execute(sqlalchemy.text(
+        tab = connection.execute(sqlalchemy.text(
             """INSERT INTO carts
             (customer_name)
             VALUES
@@ -29,6 +29,7 @@ def create_cart(new_cart: NewCart):
             ),
         [{"customer" : new_cart.customer}]
         )
+        uid = str(tab.scalar_one())
     return {"cart_id": uid}
 
 
@@ -38,15 +39,20 @@ def get_cart(cart_id: int):
 
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
-            """SELECT *
+            """SELECT *, carts.id
             FROM carts
-            JOIN cart_items ON carts_items.cart_id = carts.id
-            WHERE id = :id"""
+            LEFT JOIN cart_items ON carts.id = cart_items.cart_id
+            WHERE carts.id = :id
+            
+
+            """
             ),
         [{"id": cart_id}]
         )
 
-    return tab
+    
+    print(tab.scalars().all())
+    return tab.scalars().all()
 
 
 class CartItem(BaseModel):
@@ -61,13 +67,13 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
         connection.execute(sqlalchemy.text(
             """
             INSERT INTO cart_items 
-            (potion_inventory_id, quantity, cart_id)
-            SELECT potion_inventory.id, :potion_id, :quant
+            (cart_id, quantity, potion_inventory_id)
+            SELECT :cart_id, :quant, potion_inventory.id
             FROM potion_inventory
-            WHERE sku = :sku
+            WHERE potion_inventory.sku = :sku
             """
             ),
-        [{"potion_id": id, "cart_id": cart_id, "sku": item_sku, "quant": cart_item.quantity}]
+        [{"cart_id": cart_id, "sku": item_sku, "quant": cart_item.quantity}]
         )
 
     return {"success": "ok"}
@@ -88,7 +94,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             UPDATE potion_inventory
             SET quantity = potion_inventory.quantity - cart_items.quantity
             FROM cart_items
-            WHERE potion_inventory.id = cart_items.potion_id and cart_items.cart_id = :cart_id
+            WHERE potion_inventory.id = cart_items.potion_inventory_id and cart_items.cart_id = :cart_id
             """
             ),
         [{"cart_id" : cart_id}]
@@ -98,13 +104,24 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
             """
-            SELECT SUM(quantity) AS potions_bought, SUM(quantity * price) AS earnings
+            SELECT price, SUM(quantity) AS potions_bought, SUM(quantity * price) AS earnings
             FROM cart_items
-            WHERE cart_id == :card_id
+            WHERE cart_id == :cart_id
             """
         ), 
         [{"cart_id" : cart_id}]
         )
+    #updates the payment string
+    with db.engine.begin() as connection:
+        connection.execute(sqlalchemy.text(
+            """
+            UPDATE carts
+            SET payment_string = :p
+            WHERE cart_id == :cart_id
+            """
+        ), 
+        [{"cart_id" : cart_id, "p": cart_checkout.payment}]
+        )    
 
         potions_bought = tab.scalar_one.potions_bought
         earnings = tab.scalar_one.earnings
