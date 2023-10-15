@@ -4,17 +4,28 @@ Creating the carts table
 Fields:
 customer_name
 payment_string
-
+created at
+tick
 */
+
+CREATE OR REPLACE FUNCTION add_tick(t timestamp with time zone)
+RETURNS integer
+AS
+$$
+BEGIN
+RETURN FLOOR((EXTRACT(HOUR FROM t)+2)/2) + (EXTRACT(ISODOW FROM now())-1)*12;
+END;
+$$
+LANGUAGE plpgsql; 
 
 CREATE TABLE
     carts (
         id int generated always as identity not null PRIMARY KEY,
-        customer_name text,
+        customer_name not null text,
         payment_string text,
-        created_at timestamp with time zone null default now()
+        created_at timestamp with time zone not null default now(),
+        tick integer not null default add_tick(now())     
     );
-
 
 /*
 Creating the cart_items table
@@ -33,7 +44,7 @@ CREATE TABLE
         cart_id int REFERENCES carts (id)
    )
 
-/*tick_time table
+/*ticks table (use as a reference for ticks id)
 Fields:(prepopulated with 7*12 rows)
 dow: int 1-7
 time_initial(hour) : int 0-24 
