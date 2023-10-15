@@ -129,7 +129,7 @@ def process(wholesale_catalog):
     #default [3,2,1,0]
     #since red= 0 index, it has the greatest priority
     #dark = 3 index, it has the least priority
-    priority = [1,2,3,0] 
+    priority = [3,1,2,0] 
     tot_barrel_list = []
 
     with db.engine.begin() as connection:
