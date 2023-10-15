@@ -113,9 +113,7 @@ def process():
     return plan_list
         
             
-            
-
-
+        
 # Gets called 4 times a day
 @router.post("/plan")
 def get_bottle_plan():
@@ -126,10 +124,6 @@ def get_bottle_plan():
     # Each bottle has a quantity of what proportion of red, blue, and
     # green potion to add.
     # Expressed in integers from 1 to 100 that must sum up to 100.
-
-    # Initial logic: bottle all barrels into strictly red,blue,green potions.For now only these three potions...
-
-    MAX_POTION = 20
 
     return process()
 
