@@ -86,8 +86,8 @@ def process():
     i=0
     while len(stock_list) > 0:
         row = stock_list[i%len(stock_list)]
-        #if we need more potions and we can bottle it...then add or update potion_count
-        if row.potion_needed > 0 and can_bottle(row.potion_type,cur_ml_list):
+        #if we can bottle it...
+        if can_bottle(row.potion_type,cur_ml_list):
             cur_ml_list = [cur_ml_list[i] - row.potion_type[i] for i in range(4)]
             #finds the element in the list, empty dict if not in the list
             cur = {}
@@ -102,10 +102,12 @@ def process():
                     }
                 )
             else:
-                quant = cur.get("quantity") + 1
-                cur["quantity"] = quant
+                #checks if we already have enough potions...if so remove from stock list
+                if cur.get("quantity") < row.potion_needed:
+                    cur["quantity"] = cur.get("quantity") + 1
+                else:
+                    stock_list.remove(row)
             i+=1
-            row.potion_needed -= 1
         else:
             stock_list.remove(row)
     return plan_list
