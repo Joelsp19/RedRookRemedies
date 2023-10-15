@@ -39,20 +39,20 @@ def get_cart(cart_id: int):
 
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
-            """SELECT *, carts.id
-            FROM carts
-            LEFT JOIN cart_items ON carts.id = cart_items.cart_id
+            """SELECT carts.customer_name,potion_inventory.sku,cart_items.quantity
+            FROM cart_items
+            LEFT JOIN carts
+            ON carts.id = cart_items.cart_id
+            LEFT JOIN potion_inventory
+            ON potion_inventory.id = cart_items.potion_inventory_id
             WHERE carts.id = :id
-            
 
             """
             ),
         [{"id": cart_id}]
         )
-
-    
-    print(tab.scalars().all())
-    return tab.scalars().all()
+        res = str(tab.all())
+    return res
 
 
 class CartItem(BaseModel):
