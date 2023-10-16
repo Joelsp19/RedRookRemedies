@@ -54,7 +54,7 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
     return "OK"
 
 
-#input: priority list: default- [3,2,1,0] gives priority rgbd
+#input: priority list: default- [3,2,1,0] gives priority rgbd, amt needed with prefillied values
 #output: a list of amt_needed in the order of what we should buy first
 def det_amt_needed(priority,amt_needed):
     #budget_per_type_list = [0,0,0,0] #keeps track of our budget for each type of ml
@@ -83,13 +83,17 @@ def det_amt_needed(priority,amt_needed):
 #input: type(RGBD), budget for a type, amount needed for a type, entire wholesale catalog,
 #output: a list of json objects with barrels to buy of this type and quantity to buy of each one
 # and a remaining budget 
-def buy_barrel(type,budget,amt_needed,catalog):
+def buy_barrel(type,tot_budget,amt_needed,catalog):
     #step 1: find the correct type
     #step 2: find the unit price
     #step 3: add to index_list (index in wholesale catalog)
     #step 4: sort the index_list
     #step 5: buy as many as we need/can and then move onto the next one
-
+    val = 1
+    if type == [0,0,1,0]:
+        val = 0.5
+    budget = math.floor(tot_budget* val)
+    not_used = tot_budget - budget
     barrels_to_buy =[]
     type_list = [] #the indices of all barrels of a type from a catalog
     for i,barrel in enumerate(catalog):
@@ -117,7 +121,7 @@ def buy_barrel(type,budget,amt_needed,catalog):
         if amt_needed <= 0 or budget <= 0:
             break
     print(f"done with this type")
-    return [barrels_to_buy,budget]
+    return [barrels_to_buy,budget+not_used]
         
     
 def process(wholesale_catalog):
