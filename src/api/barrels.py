@@ -56,9 +56,9 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
 
 #input: priority list: default- [3,2,1,0] gives priority rgbd
 #output: a list of amt_needed in the order of what we should buy first
-def det_amt_needed(priority):
+def det_amt_needed(priority,amt_needed):
     #budget_per_type_list = [0,0,0,0] #keeps track of our budget for each type of ml
-    amt_needed = [[0,0],[1,0],[2,0],[3,0]] #will store how much ml we need to fully restock our store
+    #amt_needed = [[0,0],[1,0],[2,0],[3,0]] #will store how much ml we need to fully restock our store
 
     #selects the potions that need to be restocked
     with db.engine.begin() as connection:
@@ -104,7 +104,7 @@ def buy_barrel(type,budget,amt_needed,catalog):
         quantity_afford = budget // barrel.price
         quantity_buy = min(quantity_max, barrel.quantity,quantity_afford)
         print(f"type: {type} b: {b} amt needed: {amt_needed} barrel ml: {barrel.ml_per_barrel} budget: {budget} barrel price {barrel.price}")
-        print(f"max: {quantity_max},buy : {quantity_buy},aff: {quantity_afford}")
+        print(f"max: {quantity_max},bar : {barrel.quantity},aff: {quantity_afford}")
         amt_needed -= barrel.ml_per_barrel * quantity_buy
         budget -= barrel.price * quantity_buy
         if quantity_buy > 0:
@@ -134,12 +134,14 @@ def process(wholesale_catalog):
 
     with db.engine.begin() as connection:
             tab = connection.execute(sqlalchemy.text(
-                "SELECT gold FROM global_inventory"
+                "SELECT * FROM global_inventory"
             ))
     result = tab.first()
     budget = result.gold
 
-    priority_list = det_amt_needed(priority)
+    amt_needed = [[0,-result.num_red_ml],[1,-result.num_green_ml],[2,-result.num_blue_ml],[3,-result.num_dark_ml]] #will store how much ml we need to fully restock our store
+
+    priority_list = det_amt_needed(priority,amt_needed)
     for val in priority_list:
         type = [0,0,0,0]
         type[val[0]] = 1 #this creates the array repr type ... [1,0,0,0]
