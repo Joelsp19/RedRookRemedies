@@ -173,7 +173,7 @@ def det_potion_priority(amt_list):
             AND potion_inventory.quantity  < cart_items.quantity
             
             """
-        ),[{"cur_tick" : 14}]
+        ),[{"cur_tick" : getCurTick()}]
         )
     
 
