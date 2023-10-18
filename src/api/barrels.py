@@ -54,46 +54,148 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
     return "OK"
 
 
-#input: priority list: default- [3,2,1,0] gives priority rgbd, amt needed with prefillied values
-#output: a list of amt_needed in the order of what we should buy first
-def det_amt_needed(priority,amt_needed):
-    #budget_per_type_list = [0,0,0,0] #keeps track of our budget for each type of ml
-    #amt_needed = [[0,0],[1,0],[2,0],[3,0]] #will store how much ml we need to fully restock our store
+#input: amt needed with current values [r,g,b,d]
+#output: a list of amt_needed with indices(used later) -->  [rnew,gnew,...]
+def det_amt_needed(amt_list):
+    amt_needed_list = amt_list.copy()
 
     #selects the potions that need to be restocked
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
-            "SELECT quantity,potion_type FROM potion_inventory WHERE quantity < max_potion"
+            "SELECT (max_potion- quantity) AS quant_needed,potion_type FROM potion_inventory WHERE quantity < max_potion"
         ))
  
     #updates the amt needed per type
     for row in tab:
         for i in range(len(row.potion_type)):
-            amt_needed[i][1] += row.potion_type[i]        
+            amt_needed_list[i] += row.potion_type[i]*row.quant_needed
 
+    return amt_needed_list        
+
+#input: priority list: uses past experience to determine, amt_needed --> [r_need,g_need,...]
+#output: a list of amt_needed in the order of what we should buy first --> [(2,b_need),(0,r_need),...]
+def det_type_priority(priority,amt_needed):
+
+    #default [3,2,1,0]
+    #since red= 0 index, it has the greatest priority
+    #dark = 3 index, it has the least priority
+    default = [3,2,1,0]
     #now amt_needed represents the ml needed per transaction
     #next we'll sort this list based on our priorities
     #1.greatest to least
-    #2.prioritize the potions with the worst max_potion/quantity ratio(need to implement)
-    #3.prioritize by rgbd
-    sorted_list = amt_needed.copy()
-    sorted_list.sort(key = lambda x: (x[1], priority[x[0]]), reverse=True) #greatest to least and then by priority list
+    #1b.prioritize based on previous transactions(2 ticks from now)
+    #1c.prioritize by default
+    
+    #changing the order of priorities can help the shop do better at diff times...
+    # if we prioritize previous transactions, then we are reliably making the potions that we know will sell 
+    # if we prioritize stocking the shop, then we focus on making sure we have enough resources
+    # if we prioritize the default, then we can manually choose what potions to buy at the next tick
+
+    sorted_list = [[0,amt_needed[0]],[1,amt_needed[1]],[2,amt_needed[2]],[3,amt_needed[3]]] #will store how much ml we need to fully restock our store
+    sorted_list.sort(key = lambda x: (priority[x[0]],x[1],default[x[0]]), reverse=True) 
     return sorted_list
 
-#input: type(RGBD), budget for a type, amount needed for a type, entire wholesale catalog,
-#output: a list of json objects with barrels to buy of this type and quantity to buy of each one
-# and a remaining budget 
-def buy_barrel(type,tot_budget,amt_needed,catalog):
+#input: the remaining budget, the index of the type, amt needed per type, catalog, a list of indices of types we already bought
+#output: the budget for the given type 
+def det_type_budget(type_index,budget,amt_needed,catalog,priority_list):
+
+    ### LOGIC 2: Ensure enough to buy the "least" of every type we need to buy
+    #Pros: good for when we starting out and not that much gold... buys multiple barrels
+    #Cons: we need to find the least of each type... lots of computation ... may not fully capitalize
+    #still are cases where won't be fully capitalized 
+
+    cheap_list = find_cheap_barrel(catalog)
+    sub_sum = 0
+    for val in priority_list:
+        index = val[0]
+        #subtracts from the budget only if we need this type(amt_needed > 0) 
+        #and we can still afford a barrel of our current type
+        if amt_needed > 0 and budget - (sub_sum + cheap_list[index]) > cheap_list[type_index]:
+            sub_sum += cheap_list[index]
+    return budget - sub_sum
+
+    """
+    ### LOGIC 1: Split based on need 
+    #*** params are different so need to refactor to reimplement
+    #Pros: ensures each barrel gets consideration
+    #Cons: if we broke, then won't end up buying anything
+    tot_amt_needed = sum(amt_needed[i] for i in range(4)) 
+    for i in range(len(amt_needed)):
+        if amt_needed[i] <= 0:
+            amt = 0
+        else:
+            amt = amt_needed[i]
+        budget_list[i] = math.floor(budget * amt/tot_amt_needed)
+    return budget_list
+    """
+
+#input: finds the cheapest barrels that are needed
+#output: an integer representing the cheapest barrel of a type
+def find_cheap_barrel(catalog):
+
+    cheap_list = [None,None,None,None]
+    for barrel in catalog:
+        #get the index corresponding to the type
+        type = barrel.potion_type.index(1) #type is 0 for red, 1 for green, 2 for blue, 3 for dark
+        if cheap_list[type] == None:
+            cheap_list[type] = barrel.price
+        else:
+            cheap_list[type] = min(cheap_list[type],barrel.price)
+    return cheap_list
+
+#input:none
+#output: the current tick
+def getCurTick():
+    with db.engine.begin() as connection:
+        tab = connection.execute(sqlalchemy.text(
+            """
+            SELECT FLOOR((EXTRACT(HOUR FROM now())+2)/2) + (EXTRACT(ISODOW FROM now())-1)*12 AS tick
+            """
+        ))
+    return tab.scalar_one()
+
+#determines the priority using past experience selling at this tick... if no past experience priority based off other priority 
+#input: current amount of ml in inventory --> [r_ml,g_ml,b_ml,d_ml] (will be negative values since this represents amt we want to buy)
+#output: the amount of ml we need for each type (will be used as a priority list) --> [r,g,b,d]
+def det_potion_priority(amt_list):
+
+    with db.engine.begin() as connection:
+        tab = connection.execute(sqlalchemy.text(
+            """SELECT (cart_items.quantity - potion_inventory.quantity ) AS quant_needed,potion_type
+            FROM cart_items
+            JOIN potion_inventory ON cart_items.potion_inventory_id = potion_inventory.id
+            WHERE potion_inventory.id IN  (
+                SELECT cart_items.potion_inventory_id
+                FROM carts
+                JOIN cart_items ON carts.id = cart_items.cart_id
+                WHERE carts.tick = :cur_tick +2
+            )
+            AND potion_inventory.quantity  < cart_items.quantity
+            
+            """
+        ),[{"cur_tick" : 14}]
+        )
+    
+
+    res = tab.all()
+    print(res)
+    if res != []:
+        for row in res:
+            for i in range(len(row.potion_type)): 
+                amt_list[i] += row.potion_type[i]*row.quant_needed  
+        return amt_list
+    else:
+        return [0,0,0,0]
+
+#input: type --> [1,0,0,0] for red, budget for a type, amount needed for a type, entire wholesale catalog
+#output: a list of json objects with barrels to buy of this type and quantity to buy of each one and the budget
+def buy_barrel(type,budget,amt_needed,catalog):
     #step 1: find the correct type
     #step 2: find the unit price
     #step 3: add to index_list (index in wholesale catalog)
     #step 4: sort the index_list
     #step 5: buy as many as we need/can and then move onto the next one
-    val = 1
-    if type == [0,0,1,0]:
-        val = 0.5
-    budget = math.floor(tot_budget* val)
-    not_used = tot_budget - budget
+    
     barrels_to_buy =[]
     type_list = [] #the indices of all barrels of a type from a catalog
     for i,barrel in enumerate(catalog):
@@ -121,19 +223,18 @@ def buy_barrel(type,tot_budget,amt_needed,catalog):
         if amt_needed <= 0 or budget <= 0:
             break
     print(f"done with this type")
-    return [barrels_to_buy,budget+not_used]
+    return [barrels_to_buy,budget]
         
     
 def process(wholesale_catalog):
-    #step 1: get the amt of gold from database
-    #step 2: get the priority list 
+    #step 1: get info from global inventory
+    #step 2: get the amt needed to stock up
+    #step 2b: get the priority based on previous info (won't matter if none)
+    #step 2c: get the priority list to determine order of buying barrels
+    #step 2d: find the budget for each typ
     #step 3: for all values in the priority list, buy the barrel, and get barrel list
     #step 4: add all the barrel lists
 
-    #default [3,2,1,0]
-    #since red= 0 index, it has the greatest priority
-    #dark = 3 index, it has the least priority
-    priority = [2,1,3,0] 
     tot_barrel_list = []
 
     with db.engine.begin() as connection:
@@ -141,19 +242,29 @@ def process(wholesale_catalog):
                 "SELECT * FROM global_inventory"
             ))
     result = tab.first()
-    budget = result.gold
+    tot_budget = result.gold
+    cur_amt = [-result.num_red_ml,-result.num_green_ml,-result.num_blue_ml,-result.num_dark_ml] #will store how much ml we need to fully restock our store
 
-    amt_needed = [[0,-result.num_red_ml],[1,-result.num_green_ml],[2,-result.num_blue_ml],[3,-result.num_dark_ml]] #will store how much ml we need to fully restock our store
+    print(cur_amt)
+    amt_needed_list = det_amt_needed(cur_amt) #amt needed to stock up each type
+    priority = det_potion_priority(cur_amt) #a priority list
+    priority_list = det_type_priority(priority,amt_needed_list) #sorted amt_needed list 
+    print(f"amt_needed: {amt_needed_list} priority: {priority} priority_list = {priority_list}") 
 
-    priority_list = det_amt_needed(priority,amt_needed)
-    for val in priority_list:
+    budget = tot_budget
+
+    #goes through priority list in order
+    for i,val in enumerate(priority_list):
         type = [0,0,0,0]
-        type[val[0]] = 1 #this creates the array repr type ... [1,0,0,0]
+        type_index = val[0]
+        type[type_index ] = 1 #this represents the array repr of type -->  [1,0,0,0] represents red
         amt_needed = val[1]
+        tmp = budget
+        budget = det_type_budget(type_index,budget,amt_needed,wholesale_catalog,priority_list[i+1:]) #grabs the budget corresponding with type 
+        extra = tmp - budget
         result = buy_barrel(type,budget,amt_needed,wholesale_catalog)
         tot_barrel_list += result[0] #updates the list of barrels to buy
-        budget = result[1] #updates the budget
-        
+        budget = result[1]+ extra #updates the budget
     
     return tot_barrel_list
 
@@ -164,6 +275,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     """ """
     #can move process into here once its confirmed to work...
     print(wholesale_catalog)
+    print("-----")
     return process(wholesale_catalog)
 
     
