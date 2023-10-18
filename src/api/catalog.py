@@ -11,10 +11,13 @@ def get_catalog():
     """
     catalog = []
 
-    # Can return a max of 20 items.
+    # Can return a max of 6 items.
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
-            "SELECT * FROM potion_inventory LIMIT 20"
+            """SELECT * 
+            FROM potion_inventory 
+            ORDER BY quantity DESC
+            LIMIT 6"""
         ))
         for row in tab:
             quant = row.quantity

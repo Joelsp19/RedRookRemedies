@@ -178,6 +178,7 @@ def det_potion_priority(amt_list):
     
 
     res = tab.all()
+    print(getCurTick())
     print(res)
     if res != []:
         for row in res:

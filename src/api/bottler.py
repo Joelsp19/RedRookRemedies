@@ -83,6 +83,7 @@ def process():
     stock_list.sort(key= lambda x : (x[0],-x[2])) #sorts based on quantity then potion_needed(descending order)
     print(stock_list)
 
+
     i=0
     while len(stock_list) > 0:
         row = stock_list[i%len(stock_list)]
