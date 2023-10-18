@@ -133,11 +133,11 @@ def det_type_budget(type_index,budget,amt_needed,catalog,priority_list):
 #output: an integer representing the cheapest barrel of a type
 def find_cheap_barrel(catalog):
 
-    cheap_list = [None,None,None,None]
+    cheap_list = [-1,-1,-1,-1] # assume that no barrel price will be negative
     for barrel in catalog:
         #get the index corresponding to the type
         type = barrel.potion_type.index(1) #type is 0 for red, 1 for green, 2 for blue, 3 for dark
-        if cheap_list[type] == None:
+        if cheap_list[type] == -1:
             cheap_list[type] = barrel.price
         else:
             cheap_list[type] = min(cheap_list[type],barrel.price)
