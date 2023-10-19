@@ -80,6 +80,10 @@ def det_type_priority(priority,amt_needed):
     #since red= 0 index, it has the greatest priority
     #dark = 3 index, it has the least priority
     default = [3,2,1,0]
+    hour = getCurTick()%24
+    if hour > 0 and hour < 12:
+        default[3] = 4 #changes to highest priority
+
     #now amt_needed represents the ml needed per transaction
     #next we'll sort this list based on our priorities
     #1.greatest to least
