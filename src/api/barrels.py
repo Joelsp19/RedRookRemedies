@@ -317,8 +317,10 @@ def process(wholesale_catalog):
     priority_list = det_type_priority(priority,amt_needed_list) #sorted amt_needed list 
     print(f"amt_needed: {amt_needed_list} priority: {priority} priority_list = {priority_list}") 
 
-
-    budget = tot_budget
+    if tot_budget > 1000:
+        budget = math.floor(tot_budget * 0.9) #ensures we have 100 gold at all times
+    else:
+        budget = tot_budget
     #goes through priority list in order
     for i,val in enumerate(priority_list):
         type = [0,0,0,0]
