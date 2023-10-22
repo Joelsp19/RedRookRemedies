@@ -35,7 +35,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
             """
             INSERT INTO transactions
             (description)
-            SELECT b.name || ' bottles :tot_ml into :tot_potions  for' || a.name 
+            SELECT b.name || ' bottles :tot_ml ml into :tot_potions potions for ' || a.name 
             FROM accounts AS a
             JOIN accounts AS b ON a.id = :own AND b.id = :bot
             RETURNING transactions.id

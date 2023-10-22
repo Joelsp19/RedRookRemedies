@@ -127,12 +127,18 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         #creates an acct if not one exists
         a_id = connection.execute(sqlalchemy.text(
             """
-            INSERT INTO accounts
-            (name)
-            SELECT carts.customer_name
-            FROM carts
-            WHERE carts.id = :cart_id
-            RETURNING accounts.id;
+            WITH inserted AS (
+                INSERT INTO accounts (name)
+                SELECT carts.customer_name
+                FROM carts
+                WHERE carts.id = :cart_id
+                ON CONFLICT (name) DO NOTHING
+                RETURNING id
+            )
+
+            SELECT id FROM inserted
+            UNION ALL
+            SELECT id FROM accounts WHERE name = (SELECT customer_name FROM carts WHERE id = :cart_id);
             """
         ),[{"cart_id" : cart_id}])
 
@@ -143,7 +149,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             """
             INSERT INTO transactions
             (description)
-            SELECT b.name || ' buys :tot_potions for :earnings gold from' || a.name 
+            SELECT b.name || ' buys :tot_potions for :earnings gold from ' || a.name 
             FROM accounts AS a
             JOIN accounts AS b ON a.id = :own AND b.id = :cus
             RETURNING transactions.id
