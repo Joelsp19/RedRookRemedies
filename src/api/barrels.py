@@ -4,7 +4,7 @@ from src.api import auth
 import sqlalchemy
 import math
 from src import database as db
-
+from src import utils
 
 router = APIRouter(
     prefix="/barrels",
@@ -28,6 +28,7 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
 
     num_ml_per_type = [0,0,0,0]
     cost = 0
+    num_barrels = 0
 
     for barrel in barrels_delivered:
         cost += (barrel.price*barrel.quantity)
@@ -35,42 +36,46 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
         if type not in range(4):
             raise Exception("Not a valid barrel")
         num_ml_per_type[type] += (barrel.ml_per_barrel * barrel.quantity)
+        num_barrels += barrel.quantity
+
+    #create new transaction
+    #add to ml_ledger and subtract from gold_ledger
 
     with db.engine.begin() as connection:
+            t_id = connection.execute(sqlalchemy.text(
+                """
+                INSERT INTO transactions
+                (description)
+                SELECT a.name || ' buys :tot_barrels barrels from ' || b.name || ' for :cost gold'
+                FROM accounts AS a
+                JOIN accounts AS b ON a.id = :own AND b.id = :bar
+                RETURNING transactions.id
+                """
+
+            ), [{"tot_barrels" : num_barrels, "cost": cost, "own": utils.OWNER_ID, "bar" : utils.BARRELER_ID}]
+            )
             connection.execute(sqlalchemy.text(
                 """
-                UPDATE global_inventory SET 
-                num_red_ml = num_red_ml + :rml,
-                num_green_ml = num_green_ml + :gml,
-                num_blue_ml = num_blue_ml + :bml,
-                num_dark_ml = num_dark_ml + :dml,
-                gold = gold - :cost
-                WHERE id=1
-                """),
-            [{"rml" :num_ml_per_type[0], "gml" : num_ml_per_type[1], "bml" : num_ml_per_type[2], "dml" : num_ml_per_type[3], "cost" : cost}]
+                INSERT INTO ml_ledger
+                (red_quantity,green_quantity,blue_quantity,dark_quantity,transaction_id,account_id)
+                VALUES
+                (:rml,:gml,:bml,:dml,:t_id,:own),
+                (-:rml,-:gml,-:bml,-:dml,:t_id,:bar);
+
+                INSERT INTO gold_ledger
+                (quantity,transaction_id,account_id)
+                VALUES
+                (-:cost,:t_id,:own),
+                (:cost,:t_id,:bar);
+
+                """
+            ), [{"t_id": t_id.scalar_one(), "rml" : num_ml_per_type[0],"gml": num_ml_per_type[1],"bml": num_ml_per_type[2], "dml": num_ml_per_type[3], "cost": cost, "own": utils.OWNER_ID, "bar" : utils.BARRELER_ID}]
             )
+             
         
     print(f"rml: {num_ml_per_type[0]} gml: {num_ml_per_type[1]} bml: {num_ml_per_type[2]} dml: {num_ml_per_type[3]} gold_cost: {cost}")
     return "OK"
 
-
-#input: amt needed with current values [r,g,b,d]
-#output: a list of amt_needed with indices(used later) -->  [rnew,gnew,...]
-def det_amt_needed(amt_list):
-    amt_needed_list = amt_list.copy()
-
-    #selects the potions that need to be restocked
-    with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            "SELECT (max_potion- quantity) AS quant_needed,potion_type FROM potion_inventory WHERE quantity < max_potion"
-        ))
- 
-    #updates the amt needed per type
-    for row in tab:
-        for i in range(len(row.potion_type)):
-            amt_needed_list[i] += row.potion_type[i]*row.quant_needed
-
-    return amt_needed_list        
 
 #input: priority list: uses past experience to determine, amt_needed --> [r_need,g_need,...]
 #output: a list of amt_needed in the order of what we should buy first --> [(2,b_need),(0,r_need),...]
@@ -80,7 +85,7 @@ def det_type_priority(priority,amt_needed):
     #since red= 0 index, it has the greatest priority
     #dark = 3 index, it has the least priority
     default = [3,2,1,0]
-    hour = getCurTick()%24
+    hour = utils.getCurTick()%24
     if hour > 0 and hour < 12:
         default[3] = 4 #changes to highest priority
 
@@ -147,42 +152,13 @@ def find_cheap_barrel(catalog):
             cheap_list[type] = min(cheap_list[type],barrel.price)
     return cheap_list
 
-#input:none
-#output: the current tick
-def getCurTick():
-    with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            """
-            SELECT FLOOR((EXTRACT(HOUR FROM now())+2)/2) + (EXTRACT(ISODOW FROM now())-1)*12 AS tick
-            """
-        ))
-    return tab.scalar_one()
+
 
 #determines the priority using past experience selling at this tick... if no past experience priority based off other priority 
 #input: current amount of ml in inventory --> [r_ml,g_ml,b_ml,d_ml] (will be negative values since this represents amt we want to buy)
 #output: the amount of ml we need for each type (will be used as a priority list) --> [r,g,b,d]
-def det_potion_priority(amt_list):
+def det_potion_priority(amt_list,res):
 
-    with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            """SELECT (cart_items.quantity - potion_inventory.quantity ) AS quant_needed,potion_type
-            FROM cart_items
-            JOIN potion_inventory ON cart_items.potion_inventory_id = potion_inventory.id
-            WHERE potion_inventory.id IN  (
-                SELECT cart_items.potion_inventory_id
-                FROM carts
-                JOIN cart_items ON carts.id = cart_items.cart_id
-                WHERE carts.tick = :cur_tick +2
-            )
-            AND potion_inventory.quantity  < cart_items.quantity
-            
-            """
-        ),[{"cur_tick" : getCurTick()}]
-        )
-    
-
-    res = tab.all()
-    print(getCurTick())
     print(res)
     if res != []:
         for row in res:
@@ -240,29 +216,114 @@ def process(wholesale_catalog):
     #step 3: for all values in the priority list, buy the barrel, and get barrel list
     #step 4: add all the barrel lists
 
+    ### DATA RETRIVAL ###
+
+    tick = utils.getCurTick()
     tot_barrel_list = []
 
     with db.engine.begin() as connection:
-            tab = connection.execute(sqlalchemy.text(
-                "SELECT * FROM global_inventory"
-            ))
-    result = tab.first()
-    tot_budget = result.gold
-    cur_amt = [-result.num_red_ml,-result.num_green_ml,-result.num_blue_ml,-result.num_dark_ml] #will store how much ml we need to fully restock our store
+        tab = connection.execute(sqlalchemy.text(
+            """
+            SELECT SUM(gold_ledger.quantity) AS gold
+            FROM gold_ledger 
+            WHERE account_id = :own
+            
+            """
+        ),[{"own": utils.OWNER_ID}])
+
+        tab1 =  connection.execute(sqlalchemy.text(
+            """
+            SELECT 
+            COALESCE(SUM(ml_ledger.red_quantity),0) AS rml,
+            COALESCE(SUM(ml_ledger.green_quantity),0) AS gml,
+            COALESCE(SUM(ml_ledger.blue_quantity),0) AS bml,
+            COALESCE(SUM(ml_ledger.dark_quantity),0) AS dml
+            FROM ml_ledger 
+            WHERE account_id = :own
+            """
+        ),[{"own": utils.OWNER_ID}])
+
+        tab2 = connection.execute(sqlalchemy.text(
+        """
+        WITH PotionSum AS (
+            SELECT pi.id,SUM(pl.quantity) AS total_quantity
+            FROM potion_inventory AS pi
+            JOIN potion_ledger AS pl ON pi.id = pl.potion_id
+            WHERE account_id = :own
+            GROUP BY pi.id
+        )
+
+        SELECT pi.potion_type, (pi.max_potion - COALESCE(ps.total_quantity,0)) as quant_needed
+        FROM potion_inventory AS pi 
+        LEFT JOIN PotionSum AS ps ON pi.id = ps.id
+        WHERE COALESCE(ps.total_quantity,0) < pi.max_potion 
+
+        """
+        ),[{"own": utils.OWNER_ID}])
+
+        tab3 = connection.execute(sqlalchemy.text(
+        """
+        WITH PotionSum AS (
+            SELECT pi.id,SUM(pl.quantity) AS total_quantity
+            FROM potion_inventory AS pi
+            JOIN potion_ledger AS pl ON pi.id = pl.potion_id
+            WHERE account_id = :own
+            GROUP BY pi.id
+        )
+
+        SELECT pi.potion_type, (ci.quantity - COALESCE(ps.total_quantity,0)) as quant_needed
+        FROM potion_inventory AS pi 
+        LEFT JOIN PotionSum AS ps ON pi.id = ps.id
+        JOIN cart_items AS ci ON ci.potion_inventory_id = pi.id
+        WHERE COALESCE(ps.total_quantity,0) < ci.quantity 
+        AND 
+        pi.id IN  (
+            SELECT cart_items.potion_inventory_id
+            FROM carts
+            JOIN cart_items ON carts.id = cart_items.cart_id
+            WHERE carts.tick = :cur_tick + 2
+        )
+        
+        """
+        ),[{"cur_tick" : utils.getCurTick(), "own": utils.OWNER_ID}]
+        )
+
+    #from tab
+    tot_budget = tab.scalar_one()
+    if tot_budget == None:
+        tot_budget = 0 
+    
+    #from tab1
+    result = tab1.first()
+    if result == []:
+        cur_amt = [0,0,0,0]
+    else:
+        cur_amt = [-result.rml,-result.gml,-result.bml,-result.dml] #will store how much ml we need to fully restock our store
+    
+    amt_needed_list = cur_amt.copy()
+    #from tab2
+    #updates the amt needed per type
+    for row in tab2:
+        for i in range(len(row.potion_type)):
+            amt_needed_list[i] += row.potion_type[i]*row.quant_needed
+    
+    #from tab3
+    prev_info = tab3.all() #returns empty list on no entries in tab3
+
+    ## DATA ANALYSIS ##
 
     print(cur_amt)
-    amt_needed_list = det_amt_needed(cur_amt) #amt needed to stock up each type
-    priority = det_potion_priority(cur_amt) #a priority list
+    priority = det_potion_priority(cur_amt,prev_info) #a priority list
     priority_list = det_type_priority(priority,amt_needed_list) #sorted amt_needed list 
     print(f"amt_needed: {amt_needed_list} priority: {priority} priority_list = {priority_list}") 
 
-    budget = tot_budget
 
+    budget = tot_budget
     #goes through priority list in order
     for i,val in enumerate(priority_list):
         type = [0,0,0,0]
         type_index = val[0]
-        type[type_index ] = 1 #this represents the array repr of type -->  [1,0,0,0] represents red
+        type[type_index] = 1 #this represents the array repr of type -->  [1,0,0,0] represents red
         amt_needed = val[1]
         tmp = budget
         budget = det_type_budget(type_index,budget,amt_needed,wholesale_catalog,priority_list[i+1:]) #grabs the budget corresponding with type 

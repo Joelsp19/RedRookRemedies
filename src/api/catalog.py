@@ -4,30 +4,37 @@ from src import database as db
 
 router = APIRouter()
 
+
 @router.get("/catalog/", tags=["catalog"])
 def get_catalog():
     """
     Each unique item combination must have only a single price.
     """
+
     catalog = []
 
-    # Can return a max of 6 items.
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
-            """SELECT * 
-            FROM potion_inventory 
-            ORDER BY quantity DESC
+            """
+            SELECT SUM(potion_ledger.quantity) AS potion_quantity,sku,name,price,potion_type
+            FROM potion_ledger
+            JOIN potion_inventory ON potion_id = potion_inventory.id
+            GROUP BY potion_id, sku,name,price,potion_type
+            ORDER BY potion_quantity DESC
             LIMIT 6"""
         ))
-        for row in tab:
-            quant = row.quantity
-            if quant != 0:
+
+    for row in tab:
+            quant = row.potion_quantity
+            if quant > 0:
                 catalog.append( {
                     "sku": row.sku,
                     "name": row.name,
-                    "quantity": row.quantity,
+                    "quantity": row.potion_quantity,
                     "price": row.price,
                     "potion_type": row.potion_type
                 })     
+
     print(catalog)
     return catalog
+

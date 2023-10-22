@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from src.api import auth
 import sqlalchemy
 from src import database as db
+from src import utils 
+
 
 
 
@@ -71,6 +73,8 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
             SELECT :cart_id, :quant, potion_inventory.id
             FROM potion_inventory
             WHERE potion_inventory.sku = :sku
+            ON CONFLICT (cart_id,potion_inventory_id) DO UPDATE
+            SET quantity = EXCLUDED.quantity
             """
             ),
         [{"cart_id": cart_id, "sku": item_sku, "quant": cart_item.quantity}]
@@ -87,17 +91,6 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
     print(cart_checkout)
 
-    with db.engine.begin() as connection:
-        connection.execute(sqlalchemy.text(
-            """
-            UPDATE potion_inventory
-            SET quantity = potion_inventory.quantity - cart_items.quantity
-            FROM cart_items
-            WHERE cart_items.potion_inventory_id = potion_inventory.id and cart_items.cart_id = :cart_id
-            """
-            ),
-        [{"cart_id" : cart_id}]
-        )
 
     #selects the total number of potions and calculates earnings
     with db.engine.begin() as connection:
@@ -106,39 +99,86 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             SELECT SUM(cart_items.quantity) AS potions_bought, SUM(cart_items.quantity * price) AS earnings
             FROM cart_items
             JOIN potion_inventory ON cart_items.potion_inventory_id = potion_inventory.id
-            WHERE cart_items.cart_id = :cart_id
+            WHERE cart_items.cart_id = :cart_id;
+
+
             """
         ), 
         [{"cart_id" : cart_id}]
         )
 
-    data = tab.first()
-    potions_bought = data.potions_bought
-    earnings = data.earnings
-
-    #updates the amt of gold 
-    with db.engine.begin() as connection:
-        connection.execute(sqlalchemy.text(
-            """
-            UPDATE global_inventory
-            SET gold = gold + :earnings
-            WHERE id = 1
-            """
-        ), 
-        [{"earnings" : earnings}]
-        )  
-
-    #updates the payment string
-    with db.engine.begin() as connection:
         connection.execute(sqlalchemy.text(
             """
             UPDATE carts
             SET payment_string = :p
             WHERE carts.id = :cart_id
+
             """
         ), 
         [{"cart_id" : cart_id, "p": cart_checkout.payment}]
-        )   
+        )
+
+
+    data = tab.first()
+    potions_bought = data.potions_bought
+    earnings = data.earnings
+
+    with db.engine.begin() as connection:
+        #creates an acct if not one exists
+        a_id = connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO accounts
+            (name)
+            SELECT carts.customer_name
+            FROM carts
+            WHERE carts.id = :cart_id
+            RETURNING accounts.id;
+            """
+        ),[{"cart_id" : cart_id}])
+
+        a_id = a_id.scalar_one()
+
+        #creates a transaction
+        t_id = connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO transactions
+            (description)
+            SELECT b.name || ' buys :tot_potions for :earnings gold from' || a.name 
+            FROM accounts AS a
+            JOIN accounts AS b ON a.id = :own AND b.id = :cus
+            RETURNING transactions.id
+            """
+
+        ), [{"earnings" : earnings, "tot_potions": potions_bought, "own": utils.OWNER_ID, "cus" : a_id}]
+        )
+
+        t_id = t_id.scalar_one()
+
+        connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO potion_ledger
+            (potion_id,quantity,transaction_id,account_id)
+            SELECT ci.potion_inventory_id, ci.quantity,:t_id,:cus
+            FROM cart_items as ci
+            WHERE ci.cart_id = :cart_id;
+
+            INSERT INTO potion_ledger
+            (potion_id,quantity,transaction_id,account_id)
+            SELECT ci.potion_inventory_id, -ci.quantity,:t_id,:own
+            FROM cart_items as ci
+            WHERE ci.cart_id = :cart_id;
+            
+            INSERT INTO gold_ledger
+            (quantity,transaction_id,account_id)
+            VALUES
+            (:earnings,:t_id,:own),
+            (-:earnings,:t_id,:cus);
+
+            """
+            ),
+        [{"cart_id" : cart_id, "t_id": t_id,"cus": a_id, "own": utils.OWNER_ID,"earnings": earnings}]
+        )
+
 
     return {"total_potions_bought": potions_bought, "total_gold_paid": earnings}
 

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from src.api import auth
 import sqlalchemy
 from src import database as db
+from src import utils
 
 
 router = APIRouter(
@@ -20,32 +21,63 @@ class PotionInventory(BaseModel):
 def post_deliver_bottles(potions_delivered: list[PotionInventory]):
     """ """
     print(potions_delivered)    
-
+    potion_count = 0
     num_ml_by_type = [0,0,0,0]
     for i in range(4):
         num_ml_by_type[i] = sum(potion.potion_type[i]*potion.quantity for potion in potions_delivered)
+        potion_count+=1
+    tot_ml = sum(num_ml_by_type)
 
-    for potion in potions_delivered:
-        with db.engine.begin() as connection:
-            connection.execute(sqlalchemy.text(
-            """UPDATE potion_inventory SET 
-            quantity = quantity + :delivered 
-            WHERE potion_type = :potion_type"""
-            ),
-        [{"delivered": potion.quantity, "potion_type": potion.potion_type}]
-        )
+
 
     with db.engine.begin() as connection:
-        connection.execute(sqlalchemy.text(
-            """UPDATE global_inventory SET 
-            num_red_ml = num_red_ml - :rml,
-            num_green_ml = num_green_ml - :gml,
-            num_blue_ml = num_blue_ml - :bml,
-            num_dark_ml = num_dark_ml - :dml
-            WHERE id = 1"""
-            ),
-        [{"rml": num_ml_by_type[0], "gml": num_ml_by_type[1],"bml": num_ml_by_type[2],"dml": num_ml_by_type[3]}]
+        t_id = connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO transactions
+            (description)
+            SELECT b.name || ' bottles :tot_ml into :tot_potions  for' || a.name 
+            FROM accounts AS a
+            JOIN accounts AS b ON a.id = :own AND b.id = :bot
+            RETURNING transactions.id
+            """
+
+        ), [{"tot_ml" : tot_ml, "tot_potions": potion_count, "own": utils.OWNER_ID, "bot" : utils.BOTTLER_ID}]
         )
+
+        t_id = t_id.scalar_one()
+
+        connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO ml_ledger
+            (red_quantity,green_quantity,blue_quantity,dark_quantity,transaction_id,account_id)
+            VALUES
+            (-:rml,-:gml,-:bml,-:dml,:t_id,:own),
+            (:rml,:gml,:bml,:dml,:t_id,:bot);
+
+            """
+        ), [{"t_id": t_id, "rml" : num_ml_by_type[0],"gml": num_ml_by_type[1],"bml": num_ml_by_type[2], "dml": num_ml_by_type[3],  "own": utils.OWNER_ID, "bot" : utils.BOTTLER_ID}]
+        )
+
+        for potion in potions_delivered:
+            connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO potion_ledger
+            (potion_id,quantity,transaction_id,account_id)
+            SELECT potion_inventory.id,:delivered,:t_id,:own
+            FROM potion_inventory
+            WHERE potion_type = :potion_type;
+            
+            INSERT INTO potion_ledger
+            (potion_id,quantity,transaction_id,account_id)
+            SELECT potion_inventory.id,-:delivered,:t_id,:bot
+            FROM potion_inventory
+            WHERE potion_type = :potion_type
+
+            """
+            ),
+        [{"delivered": potion.quantity, "potion_type": potion.potion_type, "t_id": t_id, "own": utils.OWNER_ID, "bot" : utils.BOTTLER_ID}]
+        )
+  
     return "OK"
 
     
@@ -68,15 +100,39 @@ def process():
     plan_list= []
 
     with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            "SELECT num_red_ml,num_green_ml,num_blue_ml,num_dark_ml FROM global_inventory WHERE id = 1"
-        ))
-        stock_tab = connection.execute(sqlalchemy.text(
-            "SELECT quantity,potion_type,(max_potion-quantity) AS potion_needed FROM potion_inventory WHERE quantity < max_potion"
-        ))
+        tab =  connection.execute(sqlalchemy.text(
+            """
+            SELECT 
+            COALESCE(SUM(ml_ledger.red_quantity),0) AS rml,
+            COALESCE(SUM(ml_ledger.green_quantity),0) AS gml,
+            COALESCE(SUM(ml_ledger.blue_quantity),0) AS bml,
+            COALESCE(SUM(ml_ledger.dark_quantity),0) AS dml
+            FROM ml_ledger 
+            WHERE account_id = :own
+            """
+        ),[{"own": utils.OWNER_ID}])
+
+        stock_tab  = connection.execute(sqlalchemy.text(
+        """
+        WITH PotionSum AS (
+            SELECT pi.id,SUM(pl.quantity) AS total_quantity
+            FROM potion_inventory AS pi
+            JOIN potion_ledger AS pl ON pi.id = pl.potion_id
+            WHERE account_id = :own
+            GROUP BY pi.id
+        )
+
+        SELECT COALESCE(ps.total_quantity,0) as quantity, pi.potion_type, (pi.max_potion - COALESCE(ps.total_quantity,0)) as potion_needed
+        FROM potion_inventory AS pi 
+        LEFT JOIN PotionSum AS ps ON pi.id = ps.id
+        WHERE COALESCE(ps.total_quantity,0) < pi.max_potion 
+
+        """
+        ),[{"own": utils.OWNER_ID}])
+
     
     res = tab.first()
-    cur_ml_list = [res.num_red_ml,res.num_green_ml, res.num_blue_ml, res.num_dark_ml]
+    cur_ml_list = [res.rml,res.gml, res.bml, res.dml]
 
     #we have a stock table... later we can order based on info 
     stock_list = stock_tab.all()

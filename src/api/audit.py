@@ -16,17 +16,20 @@ def get_inventory():
     """ """
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
-            "SELECT SUM(quantity) AS num_potions FROM potion_inventory"
+            "SELECT COALESCE(SUM(quantity),0) FROM potion_ledger WHERE account_id = 1" 
         ))
-        num_potions = tab.first().num_potions
         tab2 = connection.execute(sqlalchemy.text(
-            "SELECT * FROM global_inventory WHERE id = 1"
+            "SELECT COALESCE(SUM(quantity),0) FROM gold_ledger WHERE account_id = 1"
         ))
-        res = tab2.first()
-        num_gold = res.gold
-        tot_ml = res.num_red_ml + res.num_green_ml + res.num_blue_ml
+        tab3 = connection.execute(sqlalchemy.text(
+            "SELECT COALESCE(SUM(red_quantity),0)+COALESCE(SUM(green_quantity))+COALESCE(SUM(blue_quantity))+COALESCE(SUM(dark_quantity)) FROM ml_ledger WHERE account_id = 1"
+        ))
+        num_potions = tab.scalar_one()
+        num_gold = tab2.scalar_one()
+        num_ml =  tab3.scalar_one() 
 
-    return {"number_of_potions": num_potions, "ml_in_barrels": tot_ml, "gold": num_gold}
+         
+    return {"number_of_potions": num_potions, "ml_in_barrels": num_ml, "gold": num_gold}
 
 class Result(BaseModel):
     gold_match: bool
