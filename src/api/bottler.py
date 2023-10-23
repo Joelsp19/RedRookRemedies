@@ -25,9 +25,8 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
     num_ml_by_type = [0,0,0,0]
     for i in range(4):
         num_ml_by_type[i] = sum(potion.potion_type[i]*potion.quantity for potion in potions_delivered)
-        potion_count+=potion.quantity
     tot_ml = sum(num_ml_by_type)
-
+    potion_count = tot_ml/100
 
 
     with db.engine.begin() as connection:
