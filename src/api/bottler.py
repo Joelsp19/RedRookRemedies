@@ -3,6 +3,7 @@ from enum import Enum
 from pydantic import BaseModel
 from src.api import auth
 import sqlalchemy
+import math
 from src import database as db
 from src import utils
 
@@ -26,7 +27,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory]):
     for i in range(4):
         num_ml_by_type[i] = sum(potion.potion_type[i]*potion.quantity for potion in potions_delivered)
     tot_ml = sum(num_ml_by_type)
-    potion_count = tot_ml/100
+    potion_count = math.floor(tot_ml/100)
 
 
     with db.engine.begin() as connection:
