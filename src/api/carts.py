@@ -147,6 +147,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     print(cart_checkout)
 
 
+    #check if we have enough in inventory, if not then give the customer an error
+
     #selects the total number of potions and calculates earnings
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(

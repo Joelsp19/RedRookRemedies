@@ -19,6 +19,7 @@ def get_catalog():
             SELECT SUM(potion_ledger.quantity) AS potion_quantity,sku,name,price,potion_type
             FROM potion_ledger
             JOIN potion_inventory ON potion_id = potion_inventory.id
+            WHERE account_id = 1
             GROUP BY potion_id, sku,name,price,potion_type
             ORDER BY potion_quantity DESC
             LIMIT 6"""
