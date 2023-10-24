@@ -147,14 +147,14 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     print(cart_checkout)
 
 
-    #check if we have enough in inventory, if not then give the customer an error
 
     #selects the total number of potions and calculates earnings
     with db.engine.begin() as connection:
 
-        connection.execute(sqlalchemy.text(
+        #check if we have enough in inventory, if not then give the customer an error
+        bought = connection.execute(sqlalchemy.text(
             """
-            SELECT ci.quantity, sum(pl.quantity)
+            SELECT ci.quantity, sum(pl.quantity), (sum(pl.quantity) - ci.quantity) as amt_left 
             FROM cart_items as ci
             JOIN potion_ledger as pl on pl.potion_id = ci.potion_inventory_id
             WHERE ci.cart_id = :cart_id
@@ -162,6 +162,11 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             """
         ), [{"cart_id" : cart_id}])
 
+        for row in bought:
+            if row.amt_left < 0:
+                
+                raise Exception("You are buying too many potions... please try again")
+                
 
         tab = connection.execute(sqlalchemy.text(
             """
