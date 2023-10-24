@@ -151,6 +151,18 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
 
     #selects the total number of potions and calculates earnings
     with db.engine.begin() as connection:
+
+        connection.execute(sqlalchemy.text(
+            """
+            SELECT ci.quantity, sum(pl.quantity)
+            FROM cart_items as ci
+            JOIN potion_ledger as pl on pl.potion_id = ci.potion_inventory_id
+            WHERE ci.cart_id = :cart_id
+            GROUP BY ci.quantity
+            """
+        ), [{"cart_id" : cart_id}])
+
+
         tab = connection.execute(sqlalchemy.text(
             """
             SELECT SUM(cart_items.quantity) AS potions_bought, SUM(cart_items.quantity * price) AS earnings
