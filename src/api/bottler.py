@@ -150,7 +150,7 @@ def process():
         ORDER BY priority desc,potion_needed desc,quantity desc
 
         """
-        ),[{"own": utils.OWNER_ID, "tick": 22}])
+        ),[{"own": utils.OWNER_ID, "tick": utils.getCurTick()}])
 
     
     res = tab.first()
