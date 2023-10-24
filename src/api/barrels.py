@@ -281,7 +281,7 @@ def process(wholesale_catalog):
             SELECT cart_items.potion_inventory_id
             FROM carts
             JOIN cart_items ON carts.id = cart_items.cart_id
-            WHERE carts.tick = :cur_tick + 2
+            WHERE carts.tick = :cur_tick + 2 or carts.tick = :cur_tick + 3
         )
         
         """
