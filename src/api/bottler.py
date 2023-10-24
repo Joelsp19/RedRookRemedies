@@ -115,37 +115,69 @@ def process():
         stock_tab  = connection.execute(sqlalchemy.text(
         """
         WITH PotionSum AS (
-            SELECT pi.id,SUM(pl.quantity) AS total_quantity
-            FROM potion_inventory AS pi
-            JOIN potion_ledger AS pl ON pi.id = pl.potion_id
-            WHERE account_id = :own
-            GROUP BY pi.id
+        SELECT pi.id,SUM(pl.quantity) AS total_quantity
+        FROM potion_inventory AS pi
+        LEFT JOIN potion_ledger AS pl ON pi.id = pl.potion_id
+        WHERE pi.id = pi.id or account_id = :own
+        GROUP BY pi.id
+        ),
+        CartSum As (
+        SELECT SUM(ci.quantity)/COUNT(*) AS total_quantity, ci.potion_inventory_id
+        FROM cart_items AS ci
+        JOIN carts AS c on c.id = ci.cart_id
+        WHERE c.tick = :tick + 1 or c.tick = :tick + 2
+        GROUP BY ci.potion_inventory_id
         )
 
-        SELECT COALESCE(ps.total_quantity,0) as quantity, pi.potion_type, (pi.max_potion - COALESCE(ps.total_quantity,0)) as potion_needed
-        FROM potion_inventory AS pi 
-        LEFT JOIN PotionSum AS ps ON pi.id = ps.id
-        WHERE COALESCE(ps.total_quantity,0) < pi.max_potion 
+        SELECT COALESCE(ps.total_quantity, 0) as quantity, pi.potion_type,
+        (pi.max_potion - COALESCE(ps.total_quantity, 0)) as potion_needed,
+        CASE
+            WHEN pi.potion_type IN (
+            select
+                pi.potion_type
+            from
+                potion_inventory as pi
+                join CartSum as cs on cs.potion_inventory_id = pi.id
+            where
+                pi.potion_type is not null
+            ) THEN 1
+            ELSE 0
+        END AS priority
+        FROM potion_inventory AS pi
+        JOIN PotionSum AS ps ON pi.id = ps.id
+        WHERE COALESCE(ps.total_quantity, 0) < pi.max_potion
+        GROUP BY quantity,potion_needed,pi.potion_type
+        ORDER BY priority desc,potion_needed desc,quantity desc
 
         """
-        ),[{"own": utils.OWNER_ID}])
+        ),[{"own": utils.OWNER_ID, "tick": 22}])
 
     
     res = tab.first()
     cur_ml_list = [res.rml,res.gml, res.bml, res.dml]
 
-    #we have a stock table... later we can order based on info 
+    #we have a stock table... ordered based on priority, potion_needed, quantity (just looking at stocking up to max)
     stock_list = stock_tab.all()
-    stock_list.sort(key= lambda x : (x[0],-x[2])) #sorts based on quantity then potion_needed(descending order)
+    #stock_list.sort(key= lambda x : (x[0],-x[2])) #sorts based on quantity then potion_needed(descending order)
     print(stock_list)
 
 
     i=0
+    p1_finished = False
     while len(stock_list) > 0:
         row = stock_list[i%len(stock_list)]
+        #essentially skips the rows with priority 0 till we've bottled priority 1
+        if not p1_finished:
+            if row.priority == 0 and i!=0:
+                i=0
+                continue
+            elif row.priority == 0 and i==0:
+                p1_finished = True
+
         #if we can bottle it...
         if can_bottle(row.potion_type,cur_ml_list):
             cur_ml_list = [cur_ml_list[i] - row.potion_type[i] for i in range(4)]
+          
             #finds the element in the list, empty dict if not in the list
             cur = {}
             for elem in plan_list:
