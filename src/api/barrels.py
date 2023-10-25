@@ -79,13 +79,13 @@ def post_deliver_barrels(barrels_delivered: list[Barrel]):
 
 #input: priority list: uses past experience to determine, amt_needed --> [r_need,g_need,...]
 #output: a list of amt_needed in the order of what we should buy first --> [(2,b_need),(0,r_need),...]
-def det_type_priority(priority,amt_needed):
+def det_type_priority(priority,amt_needed,tick):
 
     #default [3,2,1,0]
     #since red= 0 index, it has the greatest priority
     #dark = 3 index, it has the least priority
     default = [3,2,1,0]
-    hour = utils.getCurTick()%24
+    hour = tick%24
     if hour > 0 and hour < 12:
         default[3] = 4 #changes to highest priority
 
@@ -240,6 +240,8 @@ def process(wholesale_catalog):
 
     ### DATA RETRIVAL ###
 
+
+    tick = utils.getCurTick()
     tot_barrel_list = []
 
     with db.engine.begin() as connection:
@@ -306,7 +308,7 @@ def process(wholesale_catalog):
         )
         
         """
-        ),[{"cur_tick" : utils.getCurTick(), "own": utils.OWNER_ID}]
+        ),[{"cur_tick" : tick, "own": utils.OWNER_ID}]
         )
 
     #from tab
@@ -335,7 +337,7 @@ def process(wholesale_catalog):
 
     print(cur_amt)
     priority = det_potion_priority(cur_amt,prev_info) #a priority list
-    priority_list = det_type_priority(priority,amt_needed_list) #sorted amt_needed list 
+    priority_list = det_type_priority(priority,amt_needed_list,tick) #sorted amt_needed list 
     print(f"amt_needed: {amt_needed_list} priority: {priority} priority_list = {priority_list}") 
 
     if tot_budget > 1000:
