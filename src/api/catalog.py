@@ -14,7 +14,6 @@ def get_catalog():
 
     catalog = []
 
-
     #catalog now considers previous info when showcasing catalog items
     with db.engine.begin() as connection:
         tab = connection.execute(sqlalchemy.text(
@@ -54,6 +53,28 @@ def get_catalog():
                     "price": row.price,
                     "potion_type": row.potion_type
                 })     
+
+    ### CATALOG LOGGING ###
+
+    with db.engine.begin() as connection:
+        id = connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO catalog_transactions DEFAULT VALUES
+            RETURNING id
+            """
+        ))
+
+        bt_id = id.scalar_one()
+        for potion in catalog:
+            connection.execute(sqlalchemy.text(
+                """
+                INSERT INTO log_catalog
+                (potion_sku,quantity,price,ct_id)
+                VALUES
+                (:p_sku,:q,:p,:ct_id)
+                """ 
+            ),[{"p_sku":potion["sku"],"q":potion["quantity"],"p":potion["price"],"ct_id": bt_id}])
+
 
     print(catalog)
     return catalog

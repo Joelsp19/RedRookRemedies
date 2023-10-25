@@ -216,9 +216,30 @@ def process(wholesale_catalog):
     #step 3: for all values in the priority list, buy the barrel, and get barrel list
     #step 4: add all the barrel lists
 
+    ### BARREL LOGGING ###
+
+    with db.engine.begin() as connection:
+        id = connection.execute(sqlalchemy.text(
+            """
+            INSERT INTO barrel_transactions DEFAULT VALUES
+            RETURNING id
+            """
+        ))
+
+        bt_id = id.scalar_one()
+        for barrel in wholesale_catalog:
+            connection.execute(sqlalchemy.text(
+                """
+                INSERT INTO log_barrels
+                (barrel_sku,quantity,price,ml_per_barrel,bt_id)
+                VALUES
+                (:s,:q,:p,:m,:bt_id)
+                """ 
+            ),[{"s":barrel.sku,"q":barrel.quantity,"p":barrel.price,"m":barrel.ml_per_barrel,"bt_id": bt_id}])
+
+
     ### DATA RETRIVAL ###
 
-    tick = utils.getCurTick()
     tot_barrel_list = []
 
     with db.engine.begin() as connection:
