@@ -254,6 +254,11 @@ def process(wholesale_catalog):
             """
         ),[{"own": utils.OWNER_ID}])
 
+        #from tab
+        tot_budget = tab.scalar_one()
+        if tot_budget == None:
+            tot_budget = 0 
+
         tab1 =  connection.execute(sqlalchemy.text(
             """
             SELECT 
@@ -266,6 +271,13 @@ def process(wholesale_catalog):
             """
         ),[{"own": utils.OWNER_ID}])
 
+        #from tab1
+        result = tab1.first()
+        if result == []:
+            cur_amt = [0,0,0,0]
+        else:
+            cur_amt = [-result.rml,-result.gml,-result.bml,-result.dml] #will store how much ml we need to fully restock our store
+   
         tab2 = connection.execute(sqlalchemy.text(
         """
         WITH PotionSum AS (
@@ -284,6 +296,14 @@ def process(wholesale_catalog):
         """
         ),[{"own": utils.OWNER_ID}])
 
+              
+        amt_needed_list = cur_amt.copy()
+        #from tab2
+        #updates the amt needed per type
+        for row in tab2:
+            for i in range(len(row.potion_type)):
+                amt_needed_list[i] += row.potion_type[i]*row.quant_needed
+    
         tab3 = connection.execute(sqlalchemy.text(
         """
         WITH PotionSum AS (
@@ -311,27 +331,8 @@ def process(wholesale_catalog):
         ),[{"cur_tick" : tick, "own": utils.OWNER_ID}]
         )
 
-    #from tab
-    tot_budget = tab.scalar_one()
-    if tot_budget == None:
-        tot_budget = 0 
-    
-    #from tab1
-    result = tab1.first()
-    if result == []:
-        cur_amt = [0,0,0,0]
-    else:
-        cur_amt = [-result.rml,-result.gml,-result.bml,-result.dml] #will store how much ml we need to fully restock our store
-    
-    amt_needed_list = cur_amt.copy()
-    #from tab2
-    #updates the amt needed per type
-    for row in tab2:
-        for i in range(len(row.potion_type)):
-            amt_needed_list[i] += row.potion_type[i]*row.quant_needed
-    
-    #from tab3
-    prev_info = tab3.all() #returns empty list on no entries in tab3
+        #from tab3
+        prev_info = tab3.all() #returns empty list on no entries in tab3
 
     ## DATA ANALYSIS ##
 
