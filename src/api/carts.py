@@ -157,14 +157,14 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             SELECT ci.quantity, sum(pl.quantity), (sum(pl.quantity) - ci.quantity) as amt_left 
             FROM cart_items as ci
             JOIN potion_ledger as pl on pl.potion_id = ci.potion_inventory_id
-            WHERE ci.cart_id = :cart_id
+            WHERE ci.cart_id = :cart_id and account_id = :own
             GROUP BY ci.quantity
             """
-        ), [{"cart_id" : cart_id}])
+        ), [{"cart_id" : cart_id, "own": utils.OWNER_ID}])
 
         for row in bought:
             if row.amt_left < 0:
-                
+
                 raise Exception("You are buying too many potions... please try again")
                 
 
