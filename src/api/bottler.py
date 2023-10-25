@@ -115,10 +115,10 @@ def process():
         stock_tab  = connection.execute(sqlalchemy.text(
         """
         WITH PotionSum AS (
-        SELECT pi.id,SUM(pl.quantity) AS total_quantity
+        SELECT pi.id,coalesce(SUM(pl.quantity),0) AS total_quantity
         FROM potion_inventory AS pi
         LEFT JOIN potion_ledger AS pl ON pi.id = pl.potion_id
-        WHERE pi.id = pi.id or account_id = :own
+        WHERE account_id = :own or account_id is null
         GROUP BY pi.id
         ),
         CartSum As (
