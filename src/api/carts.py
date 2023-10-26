@@ -53,19 +53,74 @@ def search_orders(
     Your results must be paginated, the max results you can return at any
     time is 5 total line items.
     """
+    metadata_obj = sqlalchemy.MetaData()
+    carts = sqlalchemy.Table("carts", metadata_obj, autoload_with=db.engine)
+    cart_items = sqlalchemy.Table("cart_items", metadata_obj, autoload_with=db.engine)
+    potion_inventory = sqlalchemy.Table("potion_inventory", metadata_obj, autoload_with=db.engine)
 
+
+
+    if sort_col is search_sort_options.customer_name:
+        order_by = carts.c.customer_name
+    elif sort_col is search_sort_options.item_sku:
+        order_by = potion_inventory.c.item_sku
+    elif sort_col is search_sort_options.line_item_total:
+        order_by = cart_items.c.quantity
+    elif sort_col is search_sort_options.timestamp:
+        order_by = carts.c.created_at
+    else:
+        assert False
+
+    if sort_order is search_sort_order.desc:
+        order_by = sqlalchemy.desc(order_by)
+    elif sort_order is search_sort_order.asc:
+        order_by = sqlalchemy.asc(order_by)
+    else:
+        assert False
+
+    cci = sqlalchemy.join(carts,cart_items,cart_items.c.cart_id == carts.c.id)
+    j = sqlalchemy.join(cci,potion_inventory,cart_items.c.potion_inventory_id == potion_inventory.c.id)
+
+
+    stmt = (
+    sqlalchemy.select(
+        cart_items.c.id,
+        carts.c.customer_name,
+        potion_inventory.c.sku,
+        (cart_items.c.quantity * potion_inventory.c.price).label("gold_paid"),
+        carts.c.created_at
+    )
+    .select_from(j)
+    .limit(5)
+    .offset(0)
+    .order_by(order_by, cart_items.c.id)
+    )
+
+    if customer_name != "":
+        stmt = stmt.where(carts.c.customer_name.ilike(f"%{customer_name}%"))
+    if potion_sku != "":
+        stmt = stmt.where(potion_inventory.c.sku.ilike(f"%{potion_sku}%"))
+
+
+    with db.engine.connect() as conn:
+        result = conn.execute(stmt)
+        json = []
+        for row in result:
+            json.append(
+                {
+                "line_item_id": row.id,
+                "item_sku": row.sku,
+                "customer_name": row.customer_name,
+                "line_item_total": row.gold_paid,
+                "timestamp": row.created_at,
+                
+                }
+            )
+    #"2021-01-01T00:00:00Z"
     return {
         "previous": "",
         "next": "",
-        "results": [
-            {
-                "line_item_id": 1,
-                "item_sku": "1 oblivion potion",
-                "customer_name": "Scaramouche",
-                "line_item_total": 50,
-                "timestamp": "2021-01-01T00:00:00Z",
-            }
-        ],
+        "results": json,
     }
 
 
@@ -146,57 +201,57 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
     print(cart_checkout)
 
-
-
     #selects the total number of potions and calculates earnings
-    with db.engine.begin() as connection:
+    try:
+        with db.engine.begin() as connection:
 
-        #check if we have enough in inventory, if not then give the customer an error
-        bought = connection.execute(sqlalchemy.text(
-            """
-            SELECT ci.quantity, sum(pl.quantity), (sum(pl.quantity) - ci.quantity) as amt_left 
-            FROM cart_items as ci
-            JOIN potion_ledger as pl on pl.potion_id = ci.potion_inventory_id
-            WHERE ci.cart_id = :cart_id and account_id = :own
-            GROUP BY ci.quantity
-            """
-        ), [{"cart_id" : cart_id, "own": utils.OWNER_ID}])
+            #check if we have enough in inventory, if not then give the customer an error
+            bought = connection.execute(sqlalchemy.text(
+                """
+                SELECT ci.quantity, sum(pl.quantity), (sum(pl.quantity) - ci.quantity) as amt_left 
+                FROM cart_items as ci
+                JOIN potion_ledger as pl on pl.potion_id = ci.potion_inventory_id
+                WHERE ci.cart_id = :cart_id and account_id = :own
+                GROUP BY ci.quantity
+                """
+            ), [{"cart_id" : cart_id, "own": utils.OWNER_ID}])
 
-        for row in bought:
-            if row.amt_left < 0:
-                raise ValueError("You are buying too many potions... please try again")        
-                
-        tab = connection.execute(sqlalchemy.text(
-            """
-            SELECT SUM(cart_items.quantity) AS potions_bought, SUM(cart_items.quantity * price) AS earnings
-            FROM cart_items
-            JOIN potion_inventory ON cart_items.potion_inventory_id = potion_inventory.id
-            WHERE cart_items.cart_id = :cart_id;
-
-
-            """
-        ), 
-        [{"cart_id" : cart_id}]
-        )
-
-        data = tab.first()
-        potions_bought = data.potions_bought
-        earnings = data.earnings
+            for row in bought:
+                if row.amt_left < 0:
+                    raise ValueError("You are buying too many potions... please try again")        
+                    
+            tab = connection.execute(sqlalchemy.text(
+                """
+                SELECT SUM(cart_items.quantity) AS potions_bought, SUM(cart_items.quantity * price) AS earnings
+                FROM cart_items
+                JOIN potion_inventory ON cart_items.potion_inventory_id = potion_inventory.id
+                WHERE cart_items.cart_id = :cart_id;
 
 
-        connection.execute(sqlalchemy.text(
-            """
-            UPDATE carts
-            SET payment_string = :p
-            WHERE carts.id = :cart_id
+                """
+            ), 
+            [{"cart_id" : cart_id}]
+            )
 
-            """
-        ), 
-        [{"cart_id" : cart_id, "p": cart_checkout.payment}]
-        )
+            data = tab.first()
+            potions_bought = data.potions_bought
+            earnings = data.earnings
 
 
-  
+            connection.execute(sqlalchemy.text(
+                """
+                UPDATE carts
+                SET payment_string = :p
+                WHERE carts.id = :cart_id
+
+                """
+            ), 
+            [{"cart_id" : cart_id, "p": cart_checkout.payment}]
+            )
+    except Exception as error:
+        print(f"Error returned: <<{error}>>")
+
+    
     with db.engine.begin() as connection:
         #creates an acct if not one exists
         a_id = connection.execute(sqlalchemy.text(
