@@ -164,10 +164,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
 
         for row in bought:
             if row.amt_left < 0:
-
-                raise Exception("You are buying too many potions... please try again")
+                raise ValueError("You are buying too many potions... please try again")        
                 
-
         tab = connection.execute(sqlalchemy.text(
             """
             SELECT SUM(cart_items.quantity) AS potions_bought, SUM(cart_items.quantity * price) AS earnings
@@ -181,6 +179,11 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         [{"cart_id" : cart_id}]
         )
 
+        data = tab.first()
+        potions_bought = data.potions_bought
+        earnings = data.earnings
+
+
         connection.execute(sqlalchemy.text(
             """
             UPDATE carts
@@ -193,10 +196,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         )
 
 
-    data = tab.first()
-    potions_bought = data.potions_bought
-    earnings = data.earnings
-
+  
     with db.engine.begin() as connection:
         #creates an acct if not one exists
         a_id = connection.execute(sqlalchemy.text(
