@@ -98,7 +98,7 @@ def search_orders(
         carts.c.created_at
     )
     .select_from(j)
-  #  .limit(LIMIT)
+    .limit(LIMIT)
     .offset(offset)
     .order_by(order_by, cart_items.c.id)
     )
@@ -118,7 +118,7 @@ def search_orders(
                 "line_item_id": row.id,
                 "item_sku": row.sku,
                 "customer_name": row.customer_name,
-                "line_item_total": row.gold_paid,
+                "line_item_total": search_page
                 "timestamp": row.created_at,
                 
                 }
