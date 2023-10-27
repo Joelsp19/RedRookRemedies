@@ -63,7 +63,7 @@ def search_orders(
     if sort_col is search_sort_options.customer_name:
         order_by = carts.c.customer_name
     elif sort_col is search_sort_options.item_sku:
-        order_by = potion_inventory.c.item_sku
+        order_by = potion_inventory.c.sku
     elif sort_col is search_sort_options.line_item_total:
         order_by = cart_items.c.quantity * potion_inventory.c.price
     elif sort_col is search_sort_options.timestamp:
