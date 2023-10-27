@@ -56,6 +56,7 @@ def search_orders(
 
     LIMIT = 5
     offset = 0
+    next = ""
 
     metadata_obj = sqlalchemy.MetaData()
     carts = sqlalchemy.Table("carts", metadata_obj, autoload_with=db.engine)
@@ -84,6 +85,7 @@ def search_orders(
 
     if search_page != "":
         offset = int(search_page) * LIMIT
+        next = f"{int(search_page) + 1}"
 
     cci = sqlalchemy.join(carts,cart_items,cart_items.c.cart_id == carts.c.id)
     j = sqlalchemy.join(cci,potion_inventory,cart_items.c.potion_inventory_id == potion_inventory.c.id)
@@ -118,15 +120,15 @@ def search_orders(
                 "line_item_id": row.id,
                 "item_sku": row.sku,
                 "customer_name": row.customer_name,
-                "line_item_total": search_page
+                "line_item_total": row.gold_paid,
                 "timestamp": row.created_at,
                 
                 }
             )
     #"2021-01-01T00:00:00Z"
     return {
-        "previous": "",
-        "next": "",
+        "previous": search_page,
+        "next": next,
         "results": json,
     }
 
