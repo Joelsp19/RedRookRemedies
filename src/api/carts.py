@@ -53,12 +53,16 @@ def search_orders(
     Your results must be paginated, the max results you can return at any
     time is 5 total line items.
     """
+
+    LIMIT = 5
+    offset = 0
+
     metadata_obj = sqlalchemy.MetaData()
     carts = sqlalchemy.Table("carts", metadata_obj, autoload_with=db.engine)
     cart_items = sqlalchemy.Table("cart_items", metadata_obj, autoload_with=db.engine)
     potion_inventory = sqlalchemy.Table("potion_inventory", metadata_obj, autoload_with=db.engine)
 
-    print(search_page)
+    print(f"search page: {search_page}")
 
     if sort_col is search_sort_options.customer_name:
         order_by = carts.c.customer_name
@@ -78,6 +82,9 @@ def search_orders(
     else:
         assert False
 
+    if search_page != "":
+        offset = int(search_page) * LIMIT
+
     cci = sqlalchemy.join(carts,cart_items,cart_items.c.cart_id == carts.c.id)
     j = sqlalchemy.join(cci,potion_inventory,cart_items.c.potion_inventory_id == potion_inventory.c.id)
 
@@ -91,8 +98,8 @@ def search_orders(
         carts.c.created_at
     )
     .select_from(j)
-    .limit(5)
-    .offset(0)
+  #  .limit(LIMIT)
+    .offset(offset)
     .order_by(order_by, cart_items.c.id)
     )
 
