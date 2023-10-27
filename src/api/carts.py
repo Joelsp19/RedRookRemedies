@@ -58,7 +58,7 @@ def search_orders(
     cart_items = sqlalchemy.Table("cart_items", metadata_obj, autoload_with=db.engine)
     potion_inventory = sqlalchemy.Table("potion_inventory", metadata_obj, autoload_with=db.engine)
 
-
+    print(search_page)
 
     if sort_col is search_sort_options.customer_name:
         order_by = carts.c.customer_name
@@ -200,6 +200,8 @@ class CartCheckout(BaseModel):
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
     print(cart_checkout)
+    earnings = 0
+    potions_bought = 0
 
     #selects the total number of potions and calculates earnings
     try:
