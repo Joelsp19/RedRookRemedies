@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from src.api import auth
 from enum import Enum
 import sqlalchemy
+from sqlalchemy import func
 from src import database as db
 from src import utils 
 
@@ -56,7 +57,10 @@ def search_orders(
 
     LIMIT = 5
     offset = 0
+    count = 0
+    previous = search_page
     next = ""
+
 
     metadata_obj = sqlalchemy.MetaData()
     carts = sqlalchemy.Table("carts", metadata_obj, autoload_with=db.engine)
@@ -85,11 +89,17 @@ def search_orders(
 
     if search_page != "":
         offset = int(search_page) * LIMIT
-        next = f"{int(search_page) + 1}"
 
     cci = sqlalchemy.join(carts,cart_items,cart_items.c.cart_id == carts.c.id)
     j = sqlalchemy.join(cci,potion_inventory,cart_items.c.potion_inventory_id == potion_inventory.c.id)
 
+
+    ctmt = (
+    sqlalchemy.select(
+        func.count(cart_items.c.id),
+    )
+    .select_from(j)
+    )
 
     stmt = (
     sqlalchemy.select(
@@ -107,11 +117,15 @@ def search_orders(
 
     if customer_name != "":
         stmt = stmt.where(carts.c.customer_name.ilike(f"%{customer_name}%"))
+        ctmt = ctmt.where(carts.c.customer_name.ilike(f"%{customer_name}%"))
+
     if potion_sku != "":
         stmt = stmt.where(potion_inventory.c.sku.ilike(f"%{potion_sku}%"))
+        ctmt = ctmt.where(potion_inventory.c.sku.ilike(f"%{potion_sku}%"))
 
 
     with db.engine.connect() as conn:
+        count = conn.execute(ctmt)
         result = conn.execute(stmt)
         json = []
         for row in result:
@@ -125,9 +139,23 @@ def search_orders(
                 
                 }
             )
+    
+    total_count = count.scalar_one()
+    coalesced_count = total_count if total_count is not None else 0
+
+
+    print(f"count:{coalesced_count}")
+    if coalesced_count - offset > LIMIT:
+        if previous == "":
+            previous = "0"
+            next = f"{int(previous) + 1}"
+        else:
+            next = f"{int(previous) + 1}"
+
+
     #"2021-01-01T00:00:00Z"
     return {
-        "previous": search_page,
+        "previous": previous,
         "next": next,
         "results": json,
     }
