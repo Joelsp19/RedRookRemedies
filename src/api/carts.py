@@ -99,6 +99,8 @@ def search_orders(
         func.count(cart_items.c.id),
     )
     .select_from(j)
+    .filter(carts.c.payment_string.isnot(None))
+
     )
 
     stmt = (
@@ -113,6 +115,7 @@ def search_orders(
     .limit(LIMIT)
     .offset(offset)
     .order_by(order_by, cart_items.c.id)
+    .filter(carts.c.payment_string.isnot(None))
     )
 
     if customer_name != "":
