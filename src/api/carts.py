@@ -188,22 +188,25 @@ def create_cart(new_cart: NewCart):
 @router.get("/{cart_id}")
 def get_cart(cart_id: int):
     """ """
+    try:
+        with db.engine.begin() as connection:
+            tab = connection.execute(sqlalchemy.text(
+                """SELECT carts.customer_name,potion_inventory.sku,cart_items.quantity
+                FROM cart_items
+                LEFT JOIN carts
+                ON carts.id = cart_items.cart_id
+                LEFT JOIN potion_inventory
+                ON potion_inventory.id = cart_items.potion_inventory_id
+                WHERE carts.id = :id
 
-    with db.engine.begin() as connection:
-        tab = connection.execute(sqlalchemy.text(
-            """SELECT carts.customer_name,potion_inventory.sku,cart_items.quantity
-            FROM cart_items
-            LEFT JOIN carts
-            ON carts.id = cart_items.cart_id
-            LEFT JOIN potion_inventory
-            ON potion_inventory.id = cart_items.potion_inventory_id
-            WHERE carts.id = :id
+                """
+                ),
+            [{"id": cart_id}]
+            )
+            res = str(tab.all())
+    except Exception as error:
+        print(f"Error returned: <<{error}>>")
 
-            """
-            ),
-        [{"id": cart_id}]
-        )
-        res = str(tab.all())
     return res
 
 
@@ -214,21 +217,24 @@ class CartItem(BaseModel):
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """ 
+    try:
+        with db.engine.begin() as connection:
+            connection.execute(sqlalchemy.text(
+                """
+                INSERT INTO cart_items 
+                (cart_id, quantity, potion_inventory_id)
+                SELECT :cart_id, :quant, potion_inventory.id
+                FROM potion_inventory
+                WHERE potion_inventory.sku = :sku
+                ON CONFLICT (cart_id,potion_inventory_id) DO UPDATE
+                SET quantity = EXCLUDED.quantity
+                """
+                ),
+            [{"cart_id": cart_id, "sku": item_sku, "quant": cart_item.quantity}]
+            )
+    except Exception as error:
+        print(f"Error returned: <<{error}>>")
 
-    with db.engine.begin() as connection:
-        connection.execute(sqlalchemy.text(
-            """
-            INSERT INTO cart_items 
-            (cart_id, quantity, potion_inventory_id)
-            SELECT :cart_id, :quant, potion_inventory.id
-            FROM potion_inventory
-            WHERE potion_inventory.sku = :sku
-            ON CONFLICT (cart_id,potion_inventory_id) DO UPDATE
-            SET quantity = EXCLUDED.quantity
-            """
-            ),
-        [{"cart_id": cart_id, "sku": item_sku, "quant": cart_item.quantity}]
-        )
 
     return {"success": "ok"}
 
@@ -243,7 +249,6 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     earnings = 0
     potions_bought = 0
 
-    #selects the total number of potions and calculates earnings
     try:
         with db.engine.begin() as connection:
 
@@ -290,11 +295,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             ), 
             [{"cart_id" : cart_id, "p": cart_checkout.payment}]
             )
-    except Exception as error:
-        print(f"Error returned: <<{error}>>")
-
     
-    with db.engine.begin() as connection:
         #creates an acct if not one exists
         a_id = connection.execute(sqlalchemy.text(
             """
@@ -355,6 +356,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             ),
         [{"cart_id" : cart_id, "t_id": t_id,"cus": a_id, "own": utils.OWNER_ID,"earnings": earnings}]
         )
+    except Exception as error:
+        print(f"Error returned: <<{error}>>")
 
 
     return {"total_potions_bought": potions_bought, "total_gold_paid": earnings}
