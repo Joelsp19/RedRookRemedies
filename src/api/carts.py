@@ -272,6 +272,9 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 """
             ), [{"cart_id" : cart_id, "own": utils.OWNER_ID}])
 
+            if bought == 0:
+                raise Exception("No rows were found - cart items")
+
             for row in bought:
                 if row.amt_left < 0:
                     raise ValueError("You are buying too many potions... please try again")        
@@ -289,6 +292,9 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             [{"cart_id" : cart_id}]
             )
 
+            if tab == 0:
+                raise Exception("No rows were found - cart items")
+
             data = tab.first()
             potions_bought = data.potions_bought
             earnings = data.earnings
@@ -305,66 +311,73 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             [{"cart_id" : cart_id, "p": cart_checkout.payment}]
             )
     
-        #creates an acct if not one exists
-        a_id = connection.execute(sqlalchemy.text(
-            """
-            WITH inserted AS (
-                INSERT INTO accounts (name)
-                SELECT carts.customer_name
-                FROM carts
-                WHERE carts.id = :cart_id
-                ON CONFLICT (name) DO NOTHING
-                RETURNING id
+            #creates an acct if not one exists
+            a_id = connection.execute(sqlalchemy.text(
+                """
+                WITH inserted AS (
+                    INSERT INTO accounts (name)
+                    SELECT carts.customer_name
+                    FROM carts
+                    WHERE carts.id = :cart_id
+                    ON CONFLICT (name) DO NOTHING
+                    RETURNING id
+                )
+
+                SELECT id FROM inserted
+                UNION ALL
+                SELECT id FROM accounts WHERE name = (SELECT customer_name FROM carts WHERE id = :cart_id);
+                """
+            ),[{"cart_id" : cart_id}])
+
+
+            if a_id == 0:
+                raise Exception("Coulnd't create/find account")
+            
+            a_id = a_id.scalar_one()
+
+            #creates a transaction
+            t_id = connection.execute(sqlalchemy.text(
+                """
+                INSERT INTO transactions
+                (description)
+                SELECT b.name || ' buys :tot_potions for :earnings gold from ' || a.name 
+                FROM accounts AS a
+                JOIN accounts AS b ON a.id = :own AND b.id = :cus
+                RETURNING transactions.id
+                """
+
+            ), [{"earnings" : earnings, "tot_potions": potions_bought, "own": utils.OWNER_ID, "cus" : a_id}]
             )
 
-            SELECT id FROM inserted
-            UNION ALL
-            SELECT id FROM accounts WHERE name = (SELECT customer_name FROM carts WHERE id = :cart_id);
-            """
-        ),[{"cart_id" : cart_id}])
+            if t_id == 0:
+                raise Exception("Couldn't insert into transactions")
 
-        a_id = a_id.scalar_one()
+            t_id = t_id.scalar_one()
 
-        #creates a transaction
-        t_id = connection.execute(sqlalchemy.text(
-            """
-            INSERT INTO transactions
-            (description)
-            SELECT b.name || ' buys :tot_potions for :earnings gold from ' || a.name 
-            FROM accounts AS a
-            JOIN accounts AS b ON a.id = :own AND b.id = :cus
-            RETURNING transactions.id
-            """
+            connection.execute(sqlalchemy.text(
+                """
+                INSERT INTO potion_ledger
+                (potion_id,quantity,transaction_id,account_id)
+                SELECT ci.potion_inventory_id, ci.quantity,:t_id,:cus
+                FROM cart_items as ci
+                WHERE ci.cart_id = :cart_id;
 
-        ), [{"earnings" : earnings, "tot_potions": potions_bought, "own": utils.OWNER_ID, "cus" : a_id}]
-        )
+                INSERT INTO potion_ledger
+                (potion_id,quantity,transaction_id,account_id)
+                SELECT ci.potion_inventory_id, -ci.quantity,:t_id,:own
+                FROM cart_items as ci
+                WHERE ci.cart_id = :cart_id;
+                
+                INSERT INTO gold_ledger
+                (quantity,transaction_id,account_id)
+                VALUES
+                (:earnings,:t_id,:own),
+                (-:earnings,:t_id,:cus);
 
-        t_id = t_id.scalar_one()
-
-        connection.execute(sqlalchemy.text(
-            """
-            INSERT INTO potion_ledger
-            (potion_id,quantity,transaction_id,account_id)
-            SELECT ci.potion_inventory_id, ci.quantity,:t_id,:cus
-            FROM cart_items as ci
-            WHERE ci.cart_id = :cart_id;
-
-            INSERT INTO potion_ledger
-            (potion_id,quantity,transaction_id,account_id)
-            SELECT ci.potion_inventory_id, -ci.quantity,:t_id,:own
-            FROM cart_items as ci
-            WHERE ci.cart_id = :cart_id;
-            
-            INSERT INTO gold_ledger
-            (quantity,transaction_id,account_id)
-            VALUES
-            (:earnings,:t_id,:own),
-            (-:earnings,:t_id,:cus);
-
-            """
-            ),
-        [{"cart_id" : cart_id, "t_id": t_id,"cus": a_id, "own": utils.OWNER_ID,"earnings": earnings}]
-        )
+                """
+                ),
+            [{"cart_id" : cart_id, "t_id": t_id,"cus": a_id, "own": utils.OWNER_ID,"earnings": earnings}]
+            )
     except Exception as error:
         print(f"Error returned: <<{error}>>")
 
