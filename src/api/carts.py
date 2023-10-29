@@ -56,7 +56,7 @@ def search_orders(
     """
 
     LIMIT = 5
-    count = 0
+    total_count = 0
 
 
     metadata_obj = sqlalchemy.MetaData()
