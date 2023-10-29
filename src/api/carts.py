@@ -56,10 +56,7 @@ def search_orders(
     """
 
     LIMIT = 5
-    offset = 0
     count = 0
-    previous = search_page
-    next = ""
 
 
     metadata_obj = sqlalchemy.MetaData()
@@ -87,8 +84,12 @@ def search_orders(
     else:
         assert False
 
-    if search_page != "":
-        offset = int(search_page) * LIMIT
+    if search_page == "":
+        page = 0
+    else:
+        page = int(search_page)
+
+    offset = page * LIMIT
 
     cci = sqlalchemy.join(carts,cart_items,cart_items.c.cart_id == carts.c.id)
     j = sqlalchemy.join(cci,potion_inventory,cart_items.c.potion_inventory_id == potion_inventory.c.id)
@@ -145,13 +146,23 @@ def search_orders(
     coalesced_count = total_count if total_count is not None else 0
 
 
+
+
     print(f"count:{coalesced_count}")
+
+    #previous = "" if page = 0, else page - 1
+    #next = page+1 if more
+
+    if page == 0:
+        previous = ""
+    else:
+        previous = f"{page - 1}"
+
+
     if coalesced_count - offset > LIMIT:
-        if previous == "":
-            previous = "0"
-            next = f"{int(previous) + 1}"
-        else:
-            next = f"{int(previous) + 1}"
+        next = f"{page + 1}"
+    else:
+        next = ""
 
 
     #"2021-01-01T00:00:00Z"
