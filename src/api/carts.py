@@ -108,6 +108,8 @@ def search_orders(
         cart_items.c.id,
         carts.c.customer_name,
         potion_inventory.c.sku,
+        potion_inventory.c.name,
+        cart_items.c.quantity,
         (cart_items.c.quantity * potion_inventory.c.price).label("gold_paid"),
         carts.c.created_at
     )
@@ -122,8 +124,8 @@ def search_orders(
         ctmt = ctmt.where(carts.c.customer_name.ilike(f"%{customer_name}%"))
 
     if potion_sku != "":
-        stmt = stmt.where(potion_inventory.c.sku.ilike(f"%{potion_sku}%"))
-        ctmt = ctmt.where(potion_inventory.c.sku.ilike(f"%{potion_sku}%"))
+        stmt = stmt.where(potion_inventory.c.name.ilike(f"%{potion_sku}%"))
+        ctmt = ctmt.where(potion_inventory.c.name.ilike(f"%{potion_sku}%"))
 
 
     with db.engine.connect() as conn:
@@ -134,7 +136,7 @@ def search_orders(
             json.append(
                 {
                 "line_item_id": row.id,
-                "item_sku": row.sku,
+                "item_sku": f"{row.quantity} {row.name}s",
                 "customer_name": row.customer_name,
                 "line_item_total": row.gold_paid,
                 "timestamp": row.created_at,
