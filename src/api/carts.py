@@ -264,11 +264,12 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             #check if we have enough in inventory, if not then give the customer an error
             bought = connection.execute(sqlalchemy.text(
                 """
-                SELECT ci.quantity, sum(pl.quantity), (sum(pl.quantity) - ci.quantity) as amt_left 
+                SELECT ci.quantity, sum(pl.quantity), (sum(pl.quantity) - ci.quantity) as amt_left
                 FROM cart_items as ci
                 JOIN potion_ledger as pl on pl.potion_id = ci.potion_inventory_id
                 WHERE ci.cart_id = :cart_id and account_id = :own
                 GROUP BY ci.quantity
+                FOR UPDATE
                 """
             ), [{"cart_id" : cart_id, "own": utils.OWNER_ID}])
 
@@ -285,8 +286,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 FROM cart_items
                 JOIN potion_inventory ON cart_items.potion_inventory_id = potion_inventory.id
                 WHERE cart_items.cart_id = :cart_id;
-
-
+                
                 """
             ), 
             [{"cart_id" : cart_id}]
