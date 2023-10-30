@@ -269,7 +269,6 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 JOIN potion_ledger as pl on pl.potion_id = ci.potion_inventory_id
                 WHERE ci.cart_id = :cart_id and account_id = :own
                 GROUP BY ci.quantity
-                FOR UPDATE
                 """
             ), [{"cart_id" : cart_id, "own": utils.OWNER_ID}])
 
