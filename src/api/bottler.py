@@ -115,39 +115,36 @@ def process():
         stock_tab  = connection.execute(sqlalchemy.text(
         """
         WITH PotionSum AS (
-        SELECT pi.id,coalesce(SUM(pl.quantity),0) AS total_quantity
+        SELECT pi.id,pi.potion_type,coalesce(SUM(pl.quantity),0) AS ps_total_quantity, pi.max_potion
         FROM potion_inventory AS pi
         LEFT JOIN potion_ledger AS pl ON pi.id = pl.potion_id
         WHERE account_id = :own or account_id is null
         GROUP BY pi.id
         ),
         CartSum As (
-        SELECT SUM(ci.quantity)/COUNT(*) AS total_quantity, ci.potion_inventory_id
+        SELECT SUM(ci.quantity)/COUNT(*) AS cs_total_quantity, ci.potion_inventory_id
         FROM cart_items AS ci
         JOIN carts AS c on c.id = ci.cart_id
         WHERE c.tick = :tick + 1 or c.tick = :tick + 2
         GROUP BY ci.potion_inventory_id
         )
 
-        SELECT COALESCE(ps.total_quantity, 0) as quantity, pi.potion_type,
-        (pi.max_potion - COALESCE(ps.total_quantity, 0)) as potion_needed,
-        CASE
-            WHEN pi.potion_type IN (
-            select
-                pi.potion_type
-            from
-                potion_inventory as pi
-                join CartSum as cs on cs.potion_inventory_id = pi.id
-            where
-                pi.potion_type is not null
-            ) THEN 1
-            ELSE 0
-        END AS priority
-        FROM potion_inventory AS pi
-        JOIN PotionSum AS ps ON pi.id = ps.id
-        WHERE COALESCE(ps.total_quantity, 0) < pi.max_potion
-        GROUP BY quantity,potion_needed,pi.potion_type
-        ORDER BY priority desc,potion_needed desc,quantity desc
+        SELECT COALESCE(ps.ps_total_quantity, 0) as quantity, ps.potion_type,
+        (COALESCE(cs.cs_total_quantity, 0) - COALESCE(ps.ps_total_quantity, 0)) as potion_needed, 1 as priority
+          FROM PotionSum as ps 
+          JOIN CartSum as cs on cs.potion_inventory_id = ps.id
+          WHERE COALESCE(cs.cs_total_quantity, 0) > COALESCE(ps.ps_total_quantity, 0) 
+
+        UNION ALL
+        
+        SELECT COALESCE(ps.ps_total_quantity, 0) as quantity, ps.potion_type,(ps.max_potion - COALESCE(cs.cs_total_quantity, 0) - COALESCE(ps.ps_total_quantity, 0)) as potion_needed, 0 as priority
+          FROM PotionSum as ps 
+          LEFT JOIN CartSum as cs on cs.potion_inventory_id = ps.id
+          WHERE ps.max_potion > COALESCE(cs.cs_total_quantity, 0) + COALESCE(ps.ps_total_quantity, 0)
+
+        ORDER BY priority desc, potion_needed, quantity
+      
+
 
         """
         ),[{"own": utils.OWNER_ID, "tick": utils.getCurTick()}])
@@ -165,6 +162,7 @@ def process():
     i=0
     p1_finished = False
     while len(stock_list) > 0:
+        print(i)
         row = stock_list[i%len(stock_list)]
         #essentially skips the rows with priority 0 till we've bottled priority 1
         if not p1_finished:
