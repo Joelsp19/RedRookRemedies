@@ -34,6 +34,7 @@ def get_catalog():
             JOIN potion_inventory ON potion_id = potion_inventory.id
             WHERE account_id = :own
             GROUP BY potion_id, sku,name,price,potion_type
+            HAVING COALESCE(SUM(pl.quantity),0) > 0
             ORDER BY priority DESC, potion_quantity DESC
             LIMIT 6
       
