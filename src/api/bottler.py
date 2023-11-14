@@ -178,7 +178,7 @@ def process():
         WHERE COALESCE(ps.total_quantity, 0) < pi.max_potion
         GROUP BY quantity,potion_needed,pi.potion_type
         ORDER BY priority desc, prev_info desc, quantity
-        LIMIT 10;
+        LIMIT 6;
 
         """
         ),[{"own": utils.OWNER_ID, "tick": utils.getCurTick(), "typeid" : typeid}])
