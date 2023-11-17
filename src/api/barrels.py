@@ -368,6 +368,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     #can move process into here once its confirmed to work...
     print(wholesale_catalog)
     print("-----")
+    return [] #time to stop buying and sell all we have
     return process(wholesale_catalog)
 
     
